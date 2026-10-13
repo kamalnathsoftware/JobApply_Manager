@@ -50,7 +50,7 @@ def upload(
     try:
         r = resume_service.create_resume(db, user.id, file.filename or "resume", data, label, llm)
     except (UnsupportedResume, ValueError) as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from e
+        raise HTTPException(422, str(e)) from e
     if r.status == "uploaded":
         r.status, r.parse_error = "parse_failed", "ANTHROPIC_API_KEY is not configured"
         db.commit()
