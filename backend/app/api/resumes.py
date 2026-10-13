@@ -52,7 +52,10 @@ def upload(
     except (UnsupportedResume, ValueError) as e:
         raise HTTPException(422, str(e)) from e
     if r.status == "uploaded":
-        r.status, r.parse_error = "parse_failed", "ANTHROPIC_API_KEY is not configured"
+        r.status, r.parse_error = (
+            "parse_failed",
+            "No LLM configured - set LLM_PROVIDER and its key in .env",
+        )
         db.commit()
     return _out(r)
 
@@ -106,7 +109,10 @@ def reparse(
 ):
     r = _get(db, user, resume_id)
     if llm is None:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "ANTHROPIC_API_KEY is not set")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "No LLM configured - set LLM_PROVIDER and its key in .env",
+        )
     if r.profile:
         r.profile.user_edited = False  # explicit re-parse overwrites manual edits
     return _out(resume_service.parse_resume(db, r, llm))

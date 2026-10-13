@@ -12,6 +12,15 @@ class Settings(BaseSettings):
     access_token_minutes: int = 30
     refresh_token_days: int = 14
     fernet_key: str = ""
+    # Which LLM does resume parsing, job scoring and form-field mapping:
+    # gemini (free tier) | groq (free tier) | ollama (local, free) | anthropic (paid API)
+    llm_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_model: str = "qwen2.5:7b"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
     cors_origins: str = "http://localhost:5173"

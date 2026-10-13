@@ -1,4 +1,4 @@
-"""Maps unknown form fields to resume data with Claude. The model is told to answer null
+"""Maps unknown form fields to resume data with an LLM. The model is told to answer null
 whenever the value is not directly supported by the candidate data -- unknowns go to a human."""
 
 import json
@@ -23,7 +23,7 @@ Output JSON: {"values": {"<field id>": <string or null>, ...}} with an entry for
 def map_fields(
     llm: LLMClient, fields: list[Field], profile: dict, bank: list[dict] | None = None
 ) -> dict[str, str]:
-    """Returns {field_id: value} for the fields Claude could fill with confidence."""
+    """Returns {field_id: value} for the fields the LLM could fill with confidence."""
     if not fields:
         return {}
     payload = {

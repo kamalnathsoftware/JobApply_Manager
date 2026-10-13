@@ -1,6 +1,7 @@
 """LLM-based job/resume match scoring (0-100) with stored reasoning."""
 
 import json
+import re
 from dataclasses import dataclass
 
 from app.services.llm import LLMClient, LLMError
@@ -60,7 +61,13 @@ def score_job(llm: LLMClient, profile: dict, job: dict) -> MatchResult:
     if not isinstance(raw, dict) or "score" not in raw:
         raise LLMError("scoring reply missing 'score'")
     try:
-        score = int(round(float(raw["score"])))
+        value = raw["score"]
+        if isinstance(value, str):  # e.g. "85/100" or "85%"
+            m = re.search(r"\d+(?:\.\d+)?", value)
+            if not m:
+                raise ValueError(value)
+            value = m.group()
+        score = int(round(float(value)))
     except (TypeError, ValueError) as e:
         raise LLMError(f"invalid score: {raw['score']!r}") from e
     return MatchResult(

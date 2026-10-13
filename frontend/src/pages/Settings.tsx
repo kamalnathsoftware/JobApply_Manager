@@ -16,6 +16,7 @@ export default function Settings() {
   const add = useSend<AnswerEntry, unknown>("POST", "/answer-bank", ["answers"]);
   const upd = useSend<AnswerEntry, AnswerEntry>("PUT", (e) => `/answer-bank/${e.id}`, ["answers"]);
   const del = useSend<void, number>("DELETE", (id) => `/answer-bank/${id}`, ["answers"]);
+  const sys = useQuery({ queryKey: ["system"], queryFn: () => api<{ llm: { provider: string; model: string; configured: boolean } }>("/system/info") });
   const unused = suggestions.filter((s) => !bank.some((b) => b.key === s.key));
   return (
     <div className="space-y-5">
@@ -38,6 +39,15 @@ export default function Settings() {
         <ErrorText error={add.error} />
         <Button className="mt-3" disabled={!draft.label || !draft.answer || !draft.patterns || add.isPending}
           onClick={() => add.mutate({ key: draft.key, label: draft.label, patterns: csv(draft.patterns), answer: draft.answer }, { onSuccess: () => setDraft({ key: "custom", label: "", patterns: "", answer: "" }) })}>Add answer</Button>
+      </Card>
+      <Card>
+        <h3 className="font-semibold">AI provider</h3>
+        {sys.data && (
+          <p className="text-sm">
+            <b>{sys.data.llm.provider}</b> · {sys.data.llm.model} ·{" "}
+            {sys.data.llm.configured ? <span className="text-green-700">configured</span> : <span className="text-red-600">not configured – set LLM_PROVIDER and its key in .env, then restart the backend and worker</span>}
+          </p>
+        )}
       </Card>
       <Card>
         <h3 className="font-semibold">Server configuration</h3>

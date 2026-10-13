@@ -33,7 +33,7 @@ export default function Resumes() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Resumes" subtitle="Upload PDF/DOCX. Claude extracts structured data you can correct before it is used on forms." />
+      <PageHeader title="Resumes" subtitle="Upload PDF/DOCX. An AI model extracts structured data you can correct before it is used on forms." />
       <Card>
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
           <Field label="File (PDF or DOCX, ≤10 MB)"><input ref={file} type="file" accept=".pdf,.docx" className={inputCls} /></Field>
@@ -60,7 +60,7 @@ export default function Resumes() {
           <div className="mt-3 flex flex-wrap gap-2">
             {r.profile && <Button small variant="secondary" onClick={() => setEditing(r)}>Review / edit parsed data</Button>}
             {!r.is_default && <Button small variant="secondary" onClick={() => makeDefault.mutate(r.id)}>Make default</Button>}
-            <Button small variant="secondary" onClick={() => reparse.mutate(r.id)} disabled={reparse.isPending}>Re-parse with Claude</Button>
+            <Button small variant="secondary" onClick={() => reparse.mutate(r.id)} disabled={reparse.isPending}>Re-parse</Button>
             <a className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100" href={apiUrl(`/resumes/${r.id}/file`, true)} target="_blank" rel="noreferrer">Download</a>
             <Button small variant="danger" onClick={() => confirm("Delete this resume?") && del.mutate(r.id)}>Delete</Button>
           </div>

@@ -104,7 +104,7 @@ def test_upload_without_api_key_is_stored_and_marked_failed(client, auth):
     finally:
         app.dependency_overrides.pop(optional_llm, None)
     assert r.status_code == 201
-    assert r.json()["status"] == "parse_failed" and "ANTHROPIC_API_KEY" in r.json()["parse_error"]
+    assert r.json()["status"] == "parse_failed" and "LLM_PROVIDER" in r.json()["parse_error"]
 
 
 def test_llm_failure_recorded_not_raised(client, auth):

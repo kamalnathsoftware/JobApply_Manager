@@ -1,6 +1,21 @@
+import re
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _as_list(v: Any) -> Any:
+    """Smaller models sometimes return a string or null where a list is expected."""
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [x.strip() for x in re.split(r"[,;\n]", v) if x.strip()]
+    return v
+
+
+def _as_str(v: Any) -> Any:
+    return None if v is None or isinstance(v, str) else str(v)
 
 
 class Contact(BaseModel):
@@ -12,6 +27,11 @@ class Contact(BaseModel):
     github: str | None = None
     website: str | None = None
 
+    @field_validator("*", mode="before")
+    @classmethod
+    def _coerce(cls, v: Any) -> Any:
+        return _as_str(v) if not isinstance(v, str) else v
+
 
 class Experience(BaseModel):
     company: str | None = None
@@ -21,6 +41,16 @@ class Experience(BaseModel):
     end: str | None = None  # "Present" allowed
     description: str | None = None
     highlights: list[str] = Field(default_factory=list)
+
+    @field_validator("highlights", mode="before")
+    @classmethod
+    def _hl(cls, v: Any) -> Any:
+        return _as_list(v)
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def _dates(cls, v: Any) -> Any:
+        return _as_str(v) if not isinstance(v, str) else v
 
 
 class Education(BaseModel):
@@ -38,6 +68,11 @@ class Project(BaseModel):
     technologies: list[str] = Field(default_factory=list)
     url: str | None = None
 
+    @field_validator("technologies", mode="before")
+    @classmethod
+    def _tech(cls, v: Any) -> Any:
+        return _as_list(v)
+
 
 class ParsedResume(BaseModel):
     """Structured resume data. Every field is optional: parsing must be lenient."""
@@ -54,6 +89,27 @@ class ParsedResume(BaseModel):
     projects: list[Project] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "skills",
+        "certifications",
+        "languages",
+        "experience",
+        "education",
+        "projects",
+        mode="before",
+    )
+    @classmethod
+    def _lists(cls, v: Any) -> Any:
+        return _as_list(v)
+
+    @field_validator("total_experience_years", mode="before")
+    @classmethod
+    def _years(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            m = re.search(r"\d+(?:\.\d+)?", v)
+            return float(m.group()) if m else None
+        return v
 
 
 class ResumeOut(BaseModel):

@@ -1,7 +1,7 @@
 """Generic company career-site adapter.
 
 Opens an apply URL, finds the application form, fills it from the parsed resume (resume data
-first, then Claude-assisted field mapping), uploads the resume and submits. It will NOT guess:
+first, then LLM-assisted field mapping), uploads the resume and submits. It will NOT guess:
 unknown required fields, logins, account creation, consent checkboxes and CAPTCHAs all stop
 the attempt with NeedsHuman + a screenshot."""
 

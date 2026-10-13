@@ -1,6 +1,6 @@
 # JobApply Manager
 
-Upload resumes → Claude extracts structured profile data → search and apply to jobs on
+Upload resumes → an AI model extracts structured profile data → search and apply to jobs on
 **Naukri, LinkedIn (Easy Apply), Indeed and company career sites** from one scheduler, using a
 different login/resume per site account.
 
@@ -28,7 +28,7 @@ different login/resume per site account.
                           │                  │
                     Worker (APScheduler, persisted in DB) ──► Playwright (one isolated context per account)
                           │                                     ├─ adapters: naukri · linkedin · indeed · company_site
-                          └─ Claude API: resume parsing, job match scoring, form-field mapping
+                          └─ LLM (Gemini / Groq / Ollama / Claude): resume parsing, job match scoring, form-field mapping
 ```
 
 * **Resume Manager** – PDF/DOCX upload, text extraction (pdfplumber / python-docx), Claude extracts a
@@ -69,12 +69,30 @@ Edit `.env`:
 | `DATABASE_URL` | `sqlite:///./jobapply.db` (simplest) **or** `mysql+pymysql://user:pass@localhost:3306/jobapply` |
 | `JWT_SECRET` | `python -c "import secrets;print(secrets.token_urlsafe(48))"` |
 | `FERNET_KEY` | `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"` – **back it up**; without it saved sessions/passwords can't be decrypted |
-| `ANTHROPIC_API_KEY` | from https://console.anthropic.com (needed for parsing, scoring, form mapping) |
-| `ANTHROPIC_MODEL` | default `claude-sonnet-5-5` |
+| `LLM_PROVIDER` | `gemini` (default, free tier) · `groq` (free tier) · `ollama` (local, free) · `anthropic` (paid) – see *AI provider* below |
+| `GEMINI_API_KEY` / `GROQ_API_KEY` | free keys from https://aistudio.google.com/apikey and https://console.groq.com/keys |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | local Ollama, e.g. `http://localhost:11434/v1` and `qwen2.5:7b` |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | only if `LLM_PROVIDER=anthropic` (Claude Pro does **not** include API credits) |
 | `PLAYWRIGHT_HEADLESS` | `true` for unattended runs; `false` to watch the browser |
 | `APPLY_GAP_MIN_S` / `APPLY_GAP_MAX_S` | random pause between applications (seconds) |
 | `INDEED_BASE_URL` | your country's Indeed domain, e.g. `https://in.indeed.com` |
 | `CORS_ORIGINS`, `STORAGE_DIR` | defaults are fine locally |
+
+### AI provider (free options)
+Resume parsing, job scoring and company-site field mapping all go through one provider, chosen with `LLM_PROVIDER`:
+
+| Provider | Cost | Setup |
+|---|---|---|
+| `gemini` (default) | free tier, rate-limited | create a key at aistudio.google.com/apikey → `GEMINI_API_KEY=` |
+| `groq` | free tier, rate-limited | key at console.groq.com/keys → `LLM_PROVIDER=groq`, `GROQ_API_KEY=` |
+| `ollama` | free, runs on your PC (8 GB+ RAM) | install Ollama, `ollama pull qwen2.5:7b`, `LLM_PROVIDER=ollama` |
+| `anthropic` | paid per token | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=` |
+
+Notes: free tiers throttle requests – the app retries automatically with back-off, so large runs are slower.
+Free/small models make more mistakes: **review your parsed resume** (Resumes → *Review / edit parsed data*), and
+keep `dry_run`/`review` mode until scores look sensible. Your resume and job text are sent to the provider you
+choose (not for `ollama`). Model names change over time – if a provider reports an unknown model, set
+`GEMINI_MODEL` / `GROQ_MODEL` to a current one from the provider's docs.
 
 ### 2. Option A – native (recommended; needed for assisted login anyway)
 
@@ -151,7 +169,7 @@ frontend/src/{pages,components,api,hooks}                         docker-compose
 * **“Run now” stays `pending`** – the worker isn't running (`python -m app.workers.main`).
 * **Assisted login says “No display available”** – the backend runs in Docker/SSH; run it natively on your desktop.
 * **Account shows `needs_login` / `needs_human`** – a session expired or the site showed a check; use *Re-login*.
-* **Resume `parse_failed`** – check `ANTHROPIC_API_KEY`, then *Re-parse with Claude*.
+* **Resume `parse_failed`** – check `LLM_PROVIDER` and its key in `.env` (Settings shows what is configured), restart backend + worker, then *Re-parse*.
 * **A site adapter finds nothing / can't apply** – the site's markup changed; update `SEL` in the adapter.
 * **PowerShell blocks `Activate.ps1`** – `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
