@@ -4,6 +4,7 @@ _REGISTRY: dict[str, str] = {
     "naukri": "app.adapters.naukri:NaukriAdapter",
     "linkedin": "app.adapters.linkedin:LinkedInAdapter",
     "indeed": "app.adapters.indeed:IndeedAdapter",
+    "company": "app.adapters.company_site:CompanySiteAdapter",
 }
 
 

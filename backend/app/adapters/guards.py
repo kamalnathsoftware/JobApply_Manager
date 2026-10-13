@@ -29,3 +29,44 @@ def detect_block(page) -> str | None:
     except Exception:
         return None
     return None
+
+
+_LOGIN_TEXT = re.compile(
+    r"(sign in|log ?in|login) (or [\w ]+ )?to (apply|continue|submit)|please (sign in|log ?in)|"
+    r"you (must|need to) (be )?(signed|logged) in",
+    re.I,
+)
+_ACCOUNT_TEXT = re.compile(
+    r"create (an |your )?account|register (to|for|an account)|sign up (to|for)|"
+    r"you (must|need to) (create|have) an account|candidate (registration|portal)",
+    re.I,
+)
+
+
+def detect_gate(page) -> tuple[str, str] | None:
+    """Detects login / account-creation walls on a company career page.
+    Returns (kind, detail) with kind in {"login", "account_required"} or None."""
+    try:
+        info = page.evaluate(
+            """() => {
+              const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+              const inputs = [...document.querySelectorAll('input,select,textarea')].filter(vis)
+                .filter(e => !['hidden','submit','button','checkbox','radio'].includes(e.type));
+              return { pw: inputs.filter(e => e.type === 'password').length, n: inputs.length,
+                       text: (document.body ? document.body.innerText : '').slice(0, 6000) };
+            }"""
+        )
+    except Exception:
+        return None
+    text = info["text"] or ""
+    if info["pw"]:
+        if _ACCOUNT_TEXT.search(text) and info["pw"] >= 1 and info["n"] <= 8:
+            return "account_required", "account creation is required before applying"
+        return "login", "a login is required before applying"
+    if _ACCOUNT_TEXT.search(text) and re.search(
+        r"(to|before) apply|apply.{0,40}account", text, re.I
+    ):
+        return "account_required", "an account is required before applying"
+    if _LOGIN_TEXT.search(text) and info["n"] <= 3:
+        return "login", "a login is required before applying"
+    return None

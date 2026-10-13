@@ -69,6 +69,8 @@ class ApplyContext:
     resume_path: str
     resolver: QuestionResolver
     screenshot_dir: Path
+    llm: object | None = None  # LLMClient; used by the company-site adapter
+    bank: list = field(default_factory=list)  # [{'patterns': [...], 'answer': '...'}] for mapping
 
 
 @dataclass

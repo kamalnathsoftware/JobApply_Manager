@@ -114,6 +114,10 @@ def build_resolver(db: Session, user_id: int, profile: dict) -> QuestionResolver
     )
 
 
+def bank_dicts(resolver: QuestionResolver) -> list[dict]:
+    return [{"patterns": b.patterns, "answer": b.answer} for b in resolver.bank]
+
+
 def job_to_posting(job: Job) -> JobPosting:
     return JobPosting(
         site=job.site,
@@ -223,7 +227,8 @@ def apply_one(
             app.pending_question = e.detail
         shot = adapter.screenshot(deps.screenshot_root / "needs_human", shot_name)
         counts.needs_human += 1
-        stop = e.kind in STOP_KINDS
+        # one company site's captcha/login says nothing about the next company site
+        stop = e.kind in STOP_KINDS and job.site != "company"
         write_log(
             db,
             f"needs human ({e.kind}): {job.title} @ {job.company}",
@@ -312,6 +317,8 @@ def _run_account_locked(deps, db, run, schedule, acct, sp, profile, counts, say)
         resume_path=resume.stored_path if resume else "",
         resolver=resolver,
         screenshot_dir=deps.screenshot_root / f"run_{run.id}" / f"acct_{acct.id}",
+        llm=deps.llm,
+        bank=bank_dicts(resolver),
     )
     with deps.open_adapter(acct.id) as adapter:
         postings = adapter.search(criteria_from(sp))
@@ -511,6 +518,8 @@ def process_approved(deps: RunDeps) -> int:
                 resume_path=resume.stored_path if resume else "",
                 resolver=build_resolver(db, acct.user_id, profile),
                 screenshot_dir=deps.screenshot_root / "approved" / f"acct_{acct.id}",
+                llm=deps.llm,
+                bank=bank_dicts(build_resolver(db, acct.user_id, profile)),
             )
             try:
                 with deps.open_adapter(acct_id) as adapter:

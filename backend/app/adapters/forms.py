@@ -7,6 +7,7 @@ from app.services.answers import QuestionResolver, match_option
 
 INSPECT_JS = r"""
 (rootSel) => {
+  document.querySelectorAll('[data-jam]').forEach(e => e.removeAttribute('data-jam'));  // ids are per-extraction
   const root = document.querySelector(rootSel) || document.body;
   const vis = el => { const r = el.getBoundingClientRect(), s = getComputedStyle(el);
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };

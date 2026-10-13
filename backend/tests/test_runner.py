@@ -377,3 +377,29 @@ def test_answered_needs_human_can_be_requeued_and_applied(env):
     ad.outcomes = {}
     assert process_approved(env.deps(scorer({}))) == 1
     assert statuses(env) == {"1": "applied"}
+
+
+def test_company_site_block_does_not_stop_other_urls(env):
+    with env.factory() as db:
+        acct = db.get(SiteAccount, env.ids["accts"][0])
+        acct.site = "company"
+        db.get(SearchProfile, env.ids["sp"]).sites = ["company"]
+        db.commit()
+
+    def co(i):
+        return JobPosting(
+            site="company",
+            external_id=str(i),
+            url=f"https://co{i}.test/apply",
+            title=f"Application {i}",
+            company=f"co{i}.test",
+            description="d" * 300,
+        )
+
+    ad = FakeAdapter([co(1), co(2)], outcomes={"1": NeedsHuman("captcha", "bot check")})
+    env.adapters[env.ids["accts"][0]] = ad
+    execute_run(env.deps(scorer({"Application": 90})), env.make_schedule("auto"))
+    assert ad.applied == ["1", "2"]
+    assert statuses(env) == {"1": "needs_human", "2": "applied"}
+    with env.factory() as db:
+        assert db.get(SiteAccount, env.ids["accts"][0]).status == "active"
