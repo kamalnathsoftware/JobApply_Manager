@@ -16,6 +16,11 @@ export default function LlmProviders() {
   const [rows, setRows] = useState<Row[]>([]);
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [chainResult, setChainResult] = useState<TestResult | null>(null);
+  const [models, setModels] = useState<Record<string, { list: string[]; error?: string }>>({});
+  const loadModels = async (provider: string) => {
+    const r = await api<{ models: string[]; error?: string }>(`/llm/models?provider=${provider}`);
+    setModels((m) => ({ ...m, [provider]: { list: r.models, error: r.error } }));
+  };
   useEffect(() => { if (data) setRows(data.providers.map((p) => ({ ...p, api_key: "" }))); }, [data]);
 
   const save = useMutation({
@@ -53,6 +58,7 @@ export default function LlmProviders() {
               <span className="ml-auto flex gap-1">
                 <Button small variant="secondary" onClick={() => move(i, -1)} disabled={i === 0}>↑</Button>
                 <Button small variant="secondary" onClick={() => move(i, 1)} disabled={i === rows.length - 1}>↓</Button>
+                <Button small variant="secondary" onClick={() => loadModels(r.provider)}>Models</Button>
                 <Button small variant="secondary" onClick={() => test(r.provider)}>Test</Button>
               </span>
             </div>
@@ -63,8 +69,12 @@ export default function LlmProviders() {
               ) : (
                 <input className={inputCls} value={r.base_url} onChange={(e) => upd(i, { base_url: e.target.value })} placeholder="http://localhost:11434/v1" />
               )}
-              <input className={inputCls} value={r.model} onChange={(e) => upd(i, { model: e.target.value })} placeholder={`model (default ${r.default_model})`} />
+              <input className={inputCls} list={`models-${r.provider}`} value={r.model} onChange={(e) => upd(i, { model: e.target.value })} placeholder={`model (default ${r.default_model})`} />
+              <datalist id={`models-${r.provider}`}>{(models[r.provider]?.list ?? []).map((m) => <option key={m} value={m} />)}</datalist>
               <div className="text-sm">
+                {models[r.provider] && (models[r.provider].error
+                  ? <span className="break-words text-red-600">✗ {models[r.provider].error}</span>
+                  : <span className="text-slate-600">{models[r.provider].list.length} models – click the model box to choose</span>)}
                 {results[r.provider] && (results[r.provider].ok
                   ? <span className="text-green-700">✓ works ({results[r.provider].model})</span>
                   : <span className="break-words text-red-600">✗ {results[r.provider].error}</span>)}

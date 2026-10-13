@@ -178,3 +178,133 @@ def test_optional_llm_uses_the_users_saved_providers(client, auth, db_session, m
     assert isinstance(got, OpenAICompatLLM)
     client.put("/api/llm/providers", headers=auth, json=[{"provider": "ollama", "enabled": False}])
     assert optional_llm(db_session.get(User, uid), db_session) is None
+
+
+GROQ_MODELS = {
+    "data": [
+        {"id": "whisper-large-v3"},
+        {"id": "llama-3.1-8b-instant"},
+        {"id": "llama-3.4-70b-versatile"},
+        {"id": "meta-llama/llama-guard-4-12b"},
+    ]
+}
+
+
+def _groq_handler(calls):
+    def handler(req: httpx.Request):
+        calls.append((req.method, req.url.path))
+        if req.method == "GET":
+            return httpx.Response(200, json=GROQ_MODELS)
+        body = __import__("json").loads(req.content)
+        if body["model"] == "llama-3.3-70b-versatile":
+            return httpx.Response(
+                404,
+                text='{"error":{"message":"The model `x` does not exist","code":"model_not_found"}}',
+            )
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": '{"used": "' + body["model"] + '"}'}}]}
+        )
+
+    return handler
+
+
+def test_missing_model_is_replaced_by_one_the_provider_offers():
+    calls = []
+    OpenAICompatLLM._resolved.clear()
+    mk = lambda: OpenAICompatLLM(  # noqa: E731
+        "https://api.groq.com/openai/v1",
+        "llama-3.3-70b-versatile",
+        "k",
+        client=httpx.Client(transport=httpx.MockTransport(_groq_handler(calls))),
+    )
+    llm = mk()
+    assert llm.complete_json("s", "u") == {
+        "used": "llama-3.4-70b-versatile"
+    }  # whisper/guard skipped
+    assert llm.model == "llama-3.4-70b-versatile"
+    assert [c[0] for c in calls] == ["POST", "GET", "POST"]
+    # remembered: a new client goes straight to the working model, no 404 round trip
+    calls.clear()
+    assert mk().complete_json("s", "u") == {"used": "llama-3.4-70b-versatile"}
+    assert calls == [("POST", "/openai/v1/chat/completions")]
+    OpenAICompatLLM._resolved.clear()
+
+
+def test_no_usable_model_gives_clear_message():
+    OpenAICompatLLM._resolved.clear()
+
+    def handler(req):
+        if req.method == "GET":
+            return httpx.Response(200, json={"data": [{"id": "whisper-large-v3"}]})
+        return httpx.Response(
+            404, text='{"error":{"code":"model_not_found","message":"model gone"}}'
+        )
+
+    llm = OpenAICompatLLM(
+        "https://api.groq.com/openai/v1",
+        "gone",
+        "k",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    with pytest.raises(LLMError):
+        llm.complete_json("s", "u")
+
+
+def test_gemini_model_gone_switches_to_listed_flash_model():
+    GeminiLLM._resolved.clear()
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append(req.method + " " + req.url.path)
+        if req.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "models": [
+                        {
+                            "name": "models/gemini-9-flash-lite",
+                            "supportedGenerationMethods": ["generateContent"],
+                        },
+                        {
+                            "name": "models/gemini-9-flash",
+                            "supportedGenerationMethods": ["generateContent"],
+                        },
+                        {
+                            "name": "models/text-embedding-9",
+                            "supportedGenerationMethods": ["embedContent"],
+                        },
+                    ]
+                },
+            )
+        if "gemini-2.5-flash" in req.url.path:
+            return httpx.Response(
+                404,
+                text='{"error":{"message":"This model models/gemini-2.5-flash is no longer available"}}',
+            )
+        return httpx.Response(200, json=gemini_ok)
+
+    gemini_ok = {"candidates": [{"content": {"parts": [{"text": '{"fine": true}'}]}}]}
+    g = GeminiLLM(
+        "k", "gemini-2.5-flash", client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    assert g.complete_json("s", "u") == {"fine": True} and g.model == "gemini-9-flash"
+    assert seen[-1].endswith("gemini-9-flash:generateContent")
+    GeminiLLM._resolved.clear()
+
+
+def test_models_endpoint(client, auth, monkeypatch):
+    def handler(req):
+        return httpx.Response(200, json=GROQ_MODELS)
+
+    real = OpenAICompatLLM.__init__
+
+    def patched(self, *a, **kw):
+        kw["client"] = httpx.Client(transport=httpx.MockTransport(handler))
+        real(self, *a, **kw)
+
+    monkeypatch.setattr(OpenAICompatLLM, "__init__", patched)
+    client.put("/api/llm/providers", headers=auth, json=[{"provider": "groq", "api_key": "k"}])
+    r = client.get("/api/llm/models?provider=groq", headers=auth).json()
+    assert "llama-3.1-8b-instant" in r["models"]
+    bad = client.get("/api/llm/models?provider=gemini", headers=auth).json()
+    assert bad["models"] == [] and "GEMINI_API_KEY" in bad["error"]

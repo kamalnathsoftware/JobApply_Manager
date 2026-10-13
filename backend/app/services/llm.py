@@ -19,6 +19,10 @@ class LLMError(Exception):
     pass
 
 
+class ModelNotFound(LLMError):
+    """The configured model name does not exist / is no longer offered."""
+
+
 class LLMClient(Protocol):
     model: str
 
@@ -47,6 +51,39 @@ def extract_json(text: str) -> dict | list:
         raise LLMError(f"invalid JSON in model reply: {e}") from e
 
 
+_SKIP_MODELS = re.compile(
+    r"whisper|tts|embed|guard|moderat|image|imagen|veo|audio|live|vision-only|transcribe|"
+    r"playai|robotics|aqa|learnlm|gemma-?\d*n?-?it-?\d*b?-?qat",
+    re.I,
+)
+_PREFER = {
+    "groq": [
+        r"llama.*70b",
+        r"gpt-oss-120b",
+        r"qwen.*(32b|72b)",
+        r"llama.*(8b|scout|maverick)",
+        r"gpt-oss",
+    ],
+    "gemini": [
+        r"gemini-[\d.]+-flash$",
+        r"gemini-[\d.]+-flash(?!-lite)",
+        r"gemini-[\d.]+-pro",
+        r"flash",
+    ],
+    "ollama": [r"qwen2\.5", r"llama3", r"mistral", r""],
+}
+
+
+def pick_model(provider: str, candidates: list[str]) -> str | None:
+    """Choose a sensible chat model from a provider's list (highest version first)."""
+    usable = sorted({c for c in candidates if c and not _SKIP_MODELS.search(c)}, reverse=True)
+    for pattern in _PREFER.get(provider, [""]):
+        for c in usable:
+            if re.search(pattern, c, re.I):
+                return c
+    return usable[0] if usable else None
+
+
 class _JsonLLM:
     """Shared behaviour: ask for JSON, retry once if the reply is not valid JSON (small and
     free models slip now and then)."""
@@ -56,8 +93,15 @@ class _JsonLLM:
     def _chat(self, system: str, user: str, max_tokens: int) -> str:
         raise NotImplementedError
 
+    def _switch_model(self) -> bool:
+        return False  # overridden by HTTP providers that can list models
+
     def complete_json(self, system: str, user: str, max_tokens: int = 8000) -> dict | list:
         try:
+            return extract_json(self._chat(system + JSON_ONLY, user, max_tokens))
+        except ModelNotFound:
+            if not self._switch_model():
+                raise
             return extract_json(self._chat(system + JSON_ONLY, user, max_tokens))
         except LLMError:
             retry_user = user + "\n\nYour previous reply was not valid JSON. Reply with JSON only."
@@ -68,6 +112,30 @@ class _HttpLLM(_JsonLLM):
     """Adds a polite POST with retries for rate limits (free tiers have tight limits)."""
 
     MAX_TRIES = 4
+    PROVIDER = ""
+    _resolved: dict[tuple[str, str], str] = {}  # (provider, configured model) -> working model
+
+    def list_models(self) -> list[str]:
+        raise NotImplementedError
+
+    def _switch_model(self) -> bool:
+        """The configured model is gone: pick a working one from the provider's list."""
+        try:
+            models = self.list_models()
+        except LLMError:
+            return False
+        choice = pick_model(self.PROVIDER, models)
+        if not choice or choice == self.model:
+            raise ModelNotFound(
+                f"model '{self.model}' is not available; models offered: {', '.join(models[:10])}"
+            )
+        self._resolved[(self.PROVIDER, self._configured)] = choice
+        self.model = choice
+        return True
+
+    def _use_resolved(self) -> None:
+        self._configured = self.model
+        self.model = self._resolved.get((self.PROVIDER, self.model), self.model)
 
     def __init__(
         self, client: httpx.Client | None = None, sleep: Callable[[float], None] = time.sleep
@@ -91,7 +159,11 @@ class _HttpLLM(_JsonLLM):
                 self._sleep(min(wait, 30.0))
                 continue
             if r.status_code >= 400:
-                raise LLMError(f"LLM service error {r.status_code}: {r.text[:300]}")
+                msg = f"LLM service error {r.status_code}: {r.text[:300]}"
+                low = r.text.lower()
+                if r.status_code == 404 and ("model" in low):
+                    raise ModelNotFound(msg)
+                raise LLMError(msg)
             try:
                 return r.json()
             except ValueError as e:
@@ -105,6 +177,25 @@ class GeminiLLM(_HttpLLM):
         if not api_key:
             raise LLMError("GEMINI_API_KEY is not configured (free key: aistudio.google.com)")
         self.api_key, self.model = api_key, model
+        self._use_resolved()
+
+    PROVIDER = "gemini"
+
+    def list_models(self) -> list[str]:
+        try:
+            r = self._http.get(
+                "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                headers={"x-goog-api-key": self.api_key},
+            )
+        except httpx.HTTPError as e:
+            raise LLMError(f"cannot reach the LLM service: {e}") from e
+        if r.status_code >= 400:
+            raise LLMError(f"LLM service error {r.status_code}: {r.text[:200]}")
+        return [
+            m["name"].removeprefix("models/")
+            for m in r.json().get("models", [])
+            if "generateContent" in m.get("supportedGenerationMethods", [])
+        ]
 
     def _chat(self, system: str, user: str, max_tokens: int) -> str:
         data = self._post(
@@ -134,6 +225,18 @@ class OpenAICompatLLM(_HttpLLM):
     def __init__(self, base_url: str, model: str, api_key: str = "", **kw):
         super().__init__(**kw)
         self.base_url, self.model, self.api_key = base_url.rstrip("/"), model, api_key
+        self.PROVIDER = "groq" if "groq.com" in self.base_url else "ollama"
+        self._use_resolved()
+
+    def list_models(self) -> list[str]:
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        try:
+            r = self._http.get(f"{self.base_url}/models", headers=headers)
+        except httpx.HTTPError as e:
+            raise LLMError(f"cannot reach the LLM service: {e}") from e
+        if r.status_code >= 400:
+            raise LLMError(f"LLM service error {r.status_code}: {r.text[:200]}")
+        return [m.get("id", "") for m in r.json().get("data", [])]
 
     def _chat(self, system: str, user: str, max_tokens: int) -> str:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}

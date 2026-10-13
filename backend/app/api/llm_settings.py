@@ -112,3 +112,21 @@ def test_provider(
         return {"ok": True, "provider": used, "model": client.model, "reply": str(out)[:100]}
     except LLMError as e:
         return {"ok": False, "provider": provider, "error": str(e)[:500]}
+
+
+@router.get("/models")
+def list_models(provider: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Models the provider currently offers to this key (to pick a valid model name)."""
+    row = next((r for r in llm_config.user_rows(db, user.id) if r.provider == provider), None)
+    cfg = (
+        ProviderConfig(provider, llm_config.row_key(row), row.model or "", row.base_url or "")
+        if row
+        else ProviderConfig(provider)
+    )
+    try:
+        client = build_single(cfg)
+        if not hasattr(client, "list_models"):
+            return {"models": [], "error": "this provider cannot list models"}
+        return {"models": sorted(client.list_models()), "suggested": None}
+    except LLMError as e:
+        return {"models": [], "error": str(e)[:300]}
