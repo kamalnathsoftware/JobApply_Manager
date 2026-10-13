@@ -16,6 +16,9 @@ export const tokens = {
   },
 };
 
+export const apiUrl = (path: string, withToken = false) =>
+  `${BASE}/api${path}${withToken && tokens.access ? `${path.includes("?") ? "&" : "?"}token=${tokens.access}` : ""}`;
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -24,7 +27,8 @@ export class ApiError extends Error {
 
 async function raw(path: string, init: RequestInit, auth: boolean): Promise<Response> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
   if (auth && tokens.access) headers.set("Authorization", `Bearer ${tokens.access}`);
   return fetch(`${BASE}/api${path}`, { ...init, headers });
 }
@@ -49,7 +53,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (res.status === 401) tokens.clear();
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const detail = typeof body.detail === "string" ? body.detail : res.statusText;
+    const detail =
+      typeof body.detail === "string"
+        ? body.detail
+        : Array.isArray(body.detail)
+          ? body.detail.map((d: { loc?: string[]; msg: string }) => `${(d.loc ?? []).slice(1).join(".")}: ${d.msg}`).join("; ")
+          : res.statusText;
     throw new ApiError(res.status, detail);
   }
   return res.status === 204 ? (undefined as T) : res.json();

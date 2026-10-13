@@ -1,8 +1,15 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import { useAuth } from "./hooks/useAuth";
+import Accounts from "./pages/Accounts";
+import Applications from "./pages/Applications";
+import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
-import Placeholder from "./pages/Placeholder";
+import Resumes from "./pages/Resumes";
+import ReviewQueue from "./pages/ReviewQueue";
+import Schedules from "./pages/Schedules";
+import SearchProfiles from "./pages/SearchProfiles";
+import Settings from "./pages/Settings";
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -10,20 +17,20 @@ function Protected() {
   return user ? <Layout /> : <Navigate to="/login" replace />;
 }
 
-const pages: [string, string][] = [
-  ["resumes", "Resumes"], ["accounts", "Accounts"], ["search-profiles", "Search Profiles"],
-  ["schedules", "Schedules"], ["review", "Review Queue"], ["applications", "Applications"],
-  ["settings", "Settings"],
-];
-
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login mode="login" />} />
       <Route path="/register" element={<Login mode="register" />} />
       <Route element={<Protected />}>
-        <Route index element={<Placeholder title="Dashboard" />} />
-        {pages.map(([p, t]) => <Route key={p} path={p} element={<Placeholder title={t} />} />)}
+        <Route index element={<Dashboard />} />
+        <Route path="resumes" element={<Resumes />} />
+        <Route path="accounts" element={<Accounts />} />
+        <Route path="search-profiles" element={<SearchProfiles />} />
+        <Route path="schedules" element={<Schedules />} />
+        <Route path="review" element={<ReviewQueue />} />
+        <Route path="applications" element={<Applications />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );

@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user, optional_llm
+from app.api.deps import current_user, current_user_sse, optional_llm
 from app.core.db import get_db
 from app.models import Resume, User
 from app.schemas.resume import ParsedResume, ResumeOut, ResumeUpdate
@@ -120,7 +120,7 @@ def make_default(resume_id: int, db: Session = Depends(get_db), user: User = Dep
 
 
 @router.get("/{resume_id}/file")
-def download(resume_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def download(resume_id: int, db: Session = Depends(get_db), user: User = Depends(current_user_sse)):
     r = _get(db, user, resume_id)
     return FileResponse(r.stored_path, media_type=r.mime_type, filename=r.original_filename)
 

@@ -17,7 +17,7 @@ export default function Login({ mode }: { mode: "login" | "register" }) {
     try {
       if (!isLogin) await register(email, password);
       await login(email, password);
-      refetch();
+      await refetch(); // user must be loaded before entering protected routes
       nav("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -29,8 +29,8 @@ export default function Login({ mode }: { mode: "login" | "register" }) {
     <div className="mx-auto mt-24 max-w-sm rounded-lg border bg-white p-6 shadow-sm">
       <h1 className="mb-4 text-xl font-bold">{isLogin ? "Sign in" : "Create account"}</h1>
       <form onSubmit={submit} className="space-y-3">
-        <input className={input} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input className={input} type="password" placeholder="Password (min 8 chars)" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <input className={input} type="email" autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input className={input} type="password" autoComplete={isLogin ? "current-password" : "new-password"} placeholder="Password (min 8 chars)" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button className="w-full rounded bg-slate-900 py-2 text-white">{isLogin ? "Sign in" : "Register"}</button>
       </form>
