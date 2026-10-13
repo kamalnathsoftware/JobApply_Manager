@@ -1,0 +1,18 @@
+<html><body><main id="m"></main>
+<script>
+window.__done = null; let step = 0;
+const steps = [
+ `<h2>Add your contact info</h2><label for="fn">First name</label><input id="fn" type="text" value="">
+  <label for="em">Email</label><input id="em" type="email"><button data-testid="continue-button">Continue</button>`,
+ `<h2>Questions from the employer</h2><fieldset><legend>Do you have a valid driving licence?</legend>
+  <label><input type="radio" name="dl" value="y" required> Yes</label><label><input type="radio" name="dl" value="n"> No</label></fieldset>
+  <button data-testid="continue-button">Continue</button>`,
+ `<h2>Review your application</h2><button data-testid="submit-button">Submit your application</button>`];
+function render() { document.getElementById('m').innerHTML = steps[step];
+  const b = document.querySelector('button'); b.onclick = () => {
+   if (step === 2) { window.__done = {fn: window.__fn, em: window.__em, dl: window.__dl};
+       document.getElementById('m').innerHTML = '<h2>Your application has been submitted</h2>'; return; }
+   window.__fn = (document.getElementById('fn')||{}).value || window.__fn; window.__em = (document.getElementById('em')||{}).value || window.__em;
+   const r = document.querySelector('input[name=dl]:checked'); if (r) window.__dl = r.value; step++; render(); }; }
+render();
+</script></body></html>

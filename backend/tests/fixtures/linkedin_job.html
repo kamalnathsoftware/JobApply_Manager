@@ -1,0 +1,32 @@
+<html><body>
+<h1>Python Developer</h1><div class="job-details-jobs-unified-top-card__company-name">Acme</div>
+<div id="job-details">Python and FastAPI role.</div>
+<button class="jobs-apply-button" aria-label="Easy Apply to this job">Easy Apply</button>
+<script>
+window.__submitted = null; let step = 0;
+const steps = [
+ `<h3>Contact info</h3><label for="email">Email address</label><input id="email" type="email" value="pre@fill.com">
+  <label for="ph">Mobile phone number *</label><input id="ph" type="text" required>`,
+ `<h3>Additional questions</h3><label for="yx">How many years of work experience do you have with Python? *</label><input id="yx" type="number" required>
+  <fieldset><legend>Are you comfortable commuting to this job's location?</legend>
+  <label><input type="radio" name="c" value="Yes"> Yes</label><label><input type="radio" name="c" value="No"> No</label></fieldset>`,
+ `<h3>Review your application</h3><label><input type="checkbox" id="follow-company-checkbox" checked> Follow Acme</label>`];
+const btns = ['<button aria-label="Continue to next step">Next</button>', '<button aria-label="Review your application">Review</button>', '<button aria-label="Submit application">Submit application</button>'];
+function render() {
+  let m = document.querySelector('.jobs-easy-apply-modal');
+  if (!m) { m = document.createElement('div'); m.className = 'jobs-easy-apply-modal'; m.setAttribute('role','dialog'); document.body.appendChild(m); }
+  m.innerHTML = '<button aria-label="Dismiss">x</button>' + steps[step] + btns[step];
+  m.querySelector('[aria-label="Dismiss"]').onclick = () => m.remove();
+  const b = m.querySelector('button:last-child');
+  b.onclick = () => {
+    if (step === 2) { window.__submitted = {follow: document.getElementById('follow-company-checkbox').checked,
+       phone: window.__phone, years: window.__years, commute: window.__commute};
+       m.remove(); document.body.insertAdjacentHTML('beforeend', '<div id="post-apply-modal">Application sent</div>'); return; }
+    window.__phone = (document.getElementById('ph')||{}).value || window.__phone;
+    window.__years = (document.getElementById('yx')||{}).value || window.__years;
+    const c = document.querySelector('input[name=c]:checked'); if (c) window.__commute = c.value;
+    step++; render();
+  };
+}
+document.querySelector('.jobs-apply-button').onclick = render;
+</script></body></html>

@@ -125,3 +125,15 @@ def test_answer_bank_api(client):
     )
     assert client.delete(f"/api/answer-bank/{eid}", headers=h).status_code == 204
     assert client.get("/api/answer-bank", headers=h).json() == []
+
+
+def test_experience_question_variants():
+    r = QuestionResolver(profile=PROFILE)
+    assert r.resolve("How many years of work experience do you have?") == "4"
+    assert r.resolve("Years of experience in total") == "4"
+    for q in (
+        "How many years of work experience do you have with Python?",
+        "Years of experience in Java development",
+        "years of experience using Docker",
+    ):
+        assert r.resolve(q) is None, q

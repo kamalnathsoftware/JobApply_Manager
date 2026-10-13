@@ -115,9 +115,10 @@ class QuestionResolver:
         m = re.search(
             r"years of (?:total |overall |relevant |professional |work )?experience(.*)", q
         )
-        if (m and not re.match(r"\s*(in|with|using|on|of)\b", m.group(1))) or re.search(
-            r"\b(total|overall) experience\b", q
-        ):
+        skill_specific = m and re.search(
+            r"\b(in|with|using|on|of|for)\s+(?!total\b|overall\b|all\b|years\b)\w+", m.group(1)
+        )
+        if (m and not skill_specific) or re.search(r"\b(total|overall) experience\b", q):
             y = p.get("total_experience_years")
             if y is not None:
                 return str(int(y)) if float(y).is_integer() else f"{y:.1f}"

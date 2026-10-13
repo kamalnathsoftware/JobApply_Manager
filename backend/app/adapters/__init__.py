@@ -2,6 +2,8 @@ from app.adapters.base import SiteAdapter
 
 _REGISTRY: dict[str, str] = {
     "naukri": "app.adapters.naukri:NaukriAdapter",
+    "linkedin": "app.adapters.linkedin:LinkedInAdapter",
+    "indeed": "app.adapters.indeed:IndeedAdapter",
 }
 
 
