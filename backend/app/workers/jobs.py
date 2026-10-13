@@ -12,7 +12,7 @@ from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.models import Schedule, ScheduleRun
 from app.services.llm import get_llm
-from app.services.runner import RunDeps, execute_run, process_approved, utcnow
+from app.services.runner import RunDeps, execute_run, process_approved, utcnow, write_log
 from app.services.scheduling import next_fire
 from app.workers.browser import open_adapter
 
@@ -76,6 +76,7 @@ def run_claimed(run_id: int) -> None:
             if run:
                 run.status, run.error, run.finished_at = "failed", str(e)[:1000], utcnow()
                 db.commit()
+                write_log(db, f"run could not start: {e}", run_id=run_id, level="error")
 
 
 def approved_queue_tick() -> None:
