@@ -14,3 +14,5 @@ anthropic>=1.0
 pdfplumber>=0.11
 python-docx>=1.1
 playwright>=1.45
+apscheduler>=3.10,<4
+tzdata

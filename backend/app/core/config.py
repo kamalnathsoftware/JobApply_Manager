@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5-5"
     cors_origins: str = "http://localhost:5173"
     storage_dir: str = "./storage"
+    playwright_headless: bool = True
+    playwright_executable: str = ""  # optional path to chrome/chromium
+    apply_gap_min_s: float = 20.0  # human-like pause between application attempts
+    apply_gap_max_s: float = 60.0
 
     @property
     def cors_origin_list(self) -> list[str]:

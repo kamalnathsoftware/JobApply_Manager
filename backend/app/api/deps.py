@@ -33,3 +33,24 @@ def optional_llm() -> LLMClient | None:
         return get_llm()
     except LLMError:
         return None
+
+
+def current_user_sse(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    token: str | None = None,
+    db: Session = Depends(get_db),
+) -> User:
+    """Like current_user, but also accepts ?token= because EventSource/<img> cannot send
+    an Authorization header."""
+    raw = creds.credentials if creds else token
+    unauth = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+    if not raw:
+        raise unauth
+    try:
+        uid = decode_token(raw, "access")
+    except InvalidToken:
+        raise unauth from None
+    user = db.get(User, uid)
+    if user is None or not user.is_active:
+        raise unauth
+    return user

@@ -17,3 +17,8 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 def get_db() -> Iterator[Session]:
     with SessionLocal() as db:
         yield db
+
+
+def get_session_factory():
+    """Dependency returning a callable that opens a Session (overridable in tests)."""
+    return SessionLocal

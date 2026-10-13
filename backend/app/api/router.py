@@ -1,9 +1,11 @@
 from fastapi import APIRouter
 
-from app.api import accounts, answer_bank, auth, resumes
+from app.api import accounts, answer_bank, auth, resumes, schedules, search_profiles
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(resumes.router)
 api_router.include_router(accounts.router)
 api_router.include_router(answer_bank.router)
+api_router.include_router(search_profiles.router)
+api_router.include_router(schedules.router)
