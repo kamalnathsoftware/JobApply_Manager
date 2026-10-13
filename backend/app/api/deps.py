@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.security import InvalidToken, decode_token
 from app.models import User
-from app.services.llm import LLMClient, LLMError, get_llm
+from app.services.llm import LLMClient, LLMError
+from app.services.llm_config import llm_for_user
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -27,10 +28,12 @@ def current_user(
     return user
 
 
-def optional_llm() -> LLMClient | None:
-    """None when no API key is configured, so uploads still work and can be parsed later."""
+def optional_llm(
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+) -> LLMClient | None:
+    """None when no provider is usable, so uploads still work and can be parsed later."""
     try:
-        return get_llm()
+        return llm_for_user(db, user.id)
     except LLMError:
         return None
 

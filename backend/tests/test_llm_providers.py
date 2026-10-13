@@ -189,7 +189,12 @@ def test_system_info_endpoint(client):
         "/api/auth/login", json={"email": "u@example.com", "password": "password123"}
     ).json()
     r = client.get("/api/system/info", headers={"Authorization": f"Bearer {t['access_token']}"})
-    assert r.status_code == 200 and set(r.json()["llm"]) == {"provider", "model", "configured"}
+    assert r.status_code == 200 and set(r.json()["llm"]) == {
+        "provider",
+        "model",
+        "configured",
+        "usable",
+    }
     assert client.get("/api/system/info").status_code == 401
 
 

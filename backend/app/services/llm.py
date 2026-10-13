@@ -7,6 +7,7 @@ import json
 import re
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
@@ -185,39 +186,122 @@ class AnthropicLLM(_JsonLLM):
 
 
 PROVIDERS = ("gemini", "groq", "ollama", "anthropic")
+DEFAULT_ERRORS = {
+    "gemini": "GEMINI_API_KEY is not configured (free key: aistudio.google.com)",
+    "groq": "GROQ_API_KEY is not configured (free key: console.groq.com)",
+    "anthropic": "ANTHROPIC_API_KEY is not configured",
+}
 
 
-def llm_info() -> dict:
-    """Which provider/model is configured and whether it looks usable (no secrets)."""
+@dataclass
+class ProviderConfig:
+    provider: str
+    api_key: str = ""
+    model: str = ""  # blank -> default from settings
+    base_url: str = ""  # ollama only
+
+
+def default_model(provider: str) -> str:
     s = get_settings()
-    p = s.llm_provider.lower()
-    model = {
+    return {
         "gemini": s.gemini_model,
         "groq": s.groq_model,
         "ollama": s.ollama_model,
         "anthropic": s.anthropic_model,
-    }.get(p, "?")
-    key = {
+    }.get(provider, "")
+
+
+def env_key(provider: str) -> str:
+    s = get_settings()
+    return {
         "gemini": s.gemini_api_key,
         "groq": s.groq_api_key,
-        "ollama": "n/a",
         "anthropic": s.anthropic_api_key,
-    }.get(p, "")
-    return {"provider": p, "model": model, "configured": p in PROVIDERS and bool(key)}
+    }.get(provider, "")
+
+
+def env_chain() -> list[ProviderConfig]:
+    """LLM_PROVIDER may list several providers: 'gemini,groq,ollama' = try in that order."""
+    names = [n.strip().lower() for n in get_settings().llm_provider.split(",") if n.strip()]
+    return [ProviderConfig(n) for n in names]
+
+
+def build_single(cfg: ProviderConfig) -> LLMClient:
+    s = get_settings()
+    p = cfg.provider.lower()
+    key = cfg.api_key or env_key(p)
+    model = cfg.model or default_model(p)
+    if p == "gemini":
+        return GeminiLLM(key, model)
+    if p == "groq":
+        if not key:
+            raise LLMError(DEFAULT_ERRORS["groq"])
+        return OpenAICompatLLM("https://api.groq.com/openai/v1", model, key)
+    if p == "ollama":
+        return OpenAICompatLLM(cfg.base_url or s.ollama_base_url, model)
+    if p == "anthropic":
+        return AnthropicLLM(key, model)
+    raise LLMError(f"Unknown LLM_PROVIDER '{cfg.provider}' (use one of {', '.join(PROVIDERS)})")
+
+
+class FallbackLLM:
+    """Tries providers in order; a failure (rate limit, denied key, bad JSON, offline...)
+    moves on to the next one. `used` names the provider that answered the last call."""
+
+    def __init__(self, clients: list[tuple[str, LLMClient]]):
+        self.clients = clients
+        self.used: str | None = None
+
+    @property
+    def model(self) -> str:
+        name = self.used or self.clients[0][0]
+        return next(c.model for n, c in self.clients if n == name)
+
+    def complete_json(self, system: str, user: str, max_tokens: int = 8000) -> dict | list:
+        errors = []
+        for name, client in self.clients:
+            try:
+                out = client.complete_json(system, user, max_tokens)
+                self.used = name
+                return out
+            except LLMError as e:
+                errors.append(f"{name}: {e}")
+        raise LLMError("all LLM providers failed - " + " | ".join(errors))
+
+
+def build_llm(configs: list[ProviderConfig]) -> LLMClient:
+    """Build one client, or a fallback chain, from the usable entries (in order)."""
+    built: list[tuple[str, LLMClient]] = []
+    errors: list[str] = []
+    for cfg in configs:
+        try:
+            built.append((cfg.provider.lower(), build_single(cfg)))
+        except LLMError as e:
+            errors.append(str(e))
+    if not built:
+        raise LLMError("; ".join(errors) or "No LLM provider is configured")
+    return built[0][1] if len(built) == 1 else FallbackLLM(built)
 
 
 def get_llm() -> LLMClient:
-    """FastAPI dependency / factory; tests override this."""
-    s = get_settings()
-    p = s.llm_provider.lower()
-    if p == "gemini":
-        return GeminiLLM(s.gemini_api_key, s.gemini_model)
-    if p == "groq":
-        if not s.groq_api_key:
-            raise LLMError("GROQ_API_KEY is not configured (free key: console.groq.com)")
-        return OpenAICompatLLM("https://api.groq.com/openai/v1", s.groq_model, s.groq_api_key)
-    if p == "ollama":
-        return OpenAICompatLLM(s.ollama_base_url, s.ollama_model)
-    if p == "anthropic":
-        return AnthropicLLM()
-    raise LLMError(f"Unknown LLM_PROVIDER '{s.llm_provider}' (use one of {', '.join(PROVIDERS)})")
+    """Env-only factory (used when the user has not saved provider settings in the UI)."""
+    return build_llm(env_chain())
+
+
+def llm_info() -> dict:
+    """Which providers the .env selects and whether any is usable (no secrets)."""
+    chain = env_chain()
+    usable = []
+    for c in chain:
+        try:
+            build_single(c)
+            usable.append(c.provider)
+        except LLMError:
+            pass
+    first = chain[0].provider if chain else "?"
+    return {
+        "provider": ",".join(c.provider for c in chain),
+        "model": default_model(first),
+        "configured": bool(usable),
+        "usable": usable,
+    }

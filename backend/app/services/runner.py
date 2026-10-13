@@ -55,10 +55,24 @@ def utcnow() -> datetime:
 class RunDeps:
     session_factory: Callable[[], Session]
     open_adapter: Callable[[int], AbstractContextManager[SiteAdapter]]
-    llm: LLMClient
+    llm: LLMClient | None
     humanizer_factory: Callable[[], Humanizer]
     screenshot_root: Path
     apply_gap: tuple[float, float] = (20.0, 60.0)
+    llm_factory: Callable[[int], LLMClient] | None = None  # per-user LLM (Settings → AI providers)
+
+    def llm_for(self, user_id: int) -> LLMClient:
+        if self.llm_factory is not None:
+            return self.llm_factory(user_id)
+        if self.llm is None:
+            raise LLMError("No LLM provider is configured")
+        return self.llm
+
+    def try_llm_for(self, user_id: int) -> LLMClient | None:
+        try:
+            return self.llm_for(user_id)
+        except LLMError:
+            return None
 
 
 @dataclass
@@ -317,7 +331,7 @@ def _run_account_locked(deps, db, run, schedule, acct, sp, profile, counts, say)
         resume_path=resume.stored_path if resume else "",
         resolver=resolver,
         screenshot_dir=deps.screenshot_root / f"run_{run.id}" / f"acct_{acct.id}",
-        llm=deps.llm,
+        llm=deps.try_llm_for(acct.user_id),
         bank=bank_dicts(resolver),
     )
     with deps.open_adapter(acct.id) as adapter:
@@ -367,7 +381,7 @@ def _run_account_locked(deps, db, run, schedule, acct, sp, profile, counts, say)
                         say(f"could not load details for '{job.title}': {e}", "warn")
                 try:
                     m = score_job(
-                        deps.llm,
+                        deps.llm_for(acct.user_id),
                         profile,
                         {
                             "title": job.title,
@@ -518,7 +532,7 @@ def process_approved(deps: RunDeps) -> int:
                 resume_path=resume.stored_path if resume else "",
                 resolver=build_resolver(db, acct.user_id, profile),
                 screenshot_dir=deps.screenshot_root / "approved" / f"acct_{acct.id}",
-                llm=deps.llm,
+                llm=deps.try_llm_for(acct.user_id),
                 bank=bank_dicts(build_resolver(db, acct.user_id, profile)),
             )
             try:

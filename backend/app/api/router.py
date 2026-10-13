@@ -5,6 +5,7 @@ from app.api import (
     answer_bank,
     applications,
     auth,
+    llm_settings,
     resumes,
     schedules,
     search_profiles,
@@ -20,3 +21,4 @@ api_router.include_router(search_profiles.router)
 api_router.include_router(schedules.router)
 api_router.include_router(applications.router)
 api_router.include_router(system.router)
+api_router.include_router(llm_settings.router)

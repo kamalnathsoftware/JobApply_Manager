@@ -88,6 +88,11 @@ Resume parsing, job scoring and company-site field mapping all go through one pr
 | `ollama` | free, runs on your PC (8 GB+ RAM) | install Ollama, `ollama pull qwen2.5:7b`, `LLM_PROVIDER=ollama` |
 | `anthropic` | paid per token | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=` |
 
+**Several providers at once:** list them in `.env`, e.g. `LLM_PROVIDER=gemini,groq,ollama` – each request tries them in
+that order and falls back to the next if one fails (rate limit, denied key, offline, bad JSON). You can also manage this in the
+app: **Settings → AI providers** lets you enable providers, reorder them, paste API keys (stored encrypted, applied immediately
+without restarting) and *Test* each one. Settings saved in the app override `.env`; *Reset to .env* removes them.
+
 Notes: free tiers throttle requests – the app retries automatically with back-off, so large runs are slower.
 Free/small models make more mistakes: **review your parsed resume** (Resumes → *Review / edit parsed data*), and
 keep `dry_run`/`review` mode until scores look sensible. Your resume and job text are sent to the provider you

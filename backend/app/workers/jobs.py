@@ -11,7 +11,7 @@ from app.adapters.humanize import Humanizer
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.models import Schedule, ScheduleRun
-from app.services.llm import get_llm
+from app.services.llm_config import llm_factory
 from app.services.runner import RunDeps, execute_run, process_approved, utcnow, write_log
 from app.services.scheduling import next_fire
 from app.workers.browser import open_adapter
@@ -24,7 +24,8 @@ def make_deps() -> RunDeps:
     return RunDeps(
         session_factory=SessionLocal,
         open_adapter=open_adapter,
-        llm=get_llm(),
+        llm=None,
+        llm_factory=llm_factory(SessionLocal),
         humanizer_factory=lambda: Humanizer(rng=random.Random()),
         screenshot_root=Path(s.storage_dir) / "screenshots",
         apply_gap=(s.apply_gap_min_s, s.apply_gap_max_s),

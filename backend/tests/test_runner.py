@@ -403,3 +403,27 @@ def test_company_site_block_does_not_stop_other_urls(env):
     assert statuses(env) == {"1": "needs_human", "2": "applied"}
     with env.factory() as db:
         assert db.get(SiteAccount, env.ids["accts"][0]).status == "active"
+
+
+def test_llm_resolved_per_user_and_missing_llm_does_not_crash(env):
+    from app.services.llm import LLMError
+
+    ad = FakeAdapter([posting(1)])
+    env.adapters[env.ids["accts"][0]] = ad
+    seen = []
+
+    def factory(user_id):
+        seen.append(user_id)
+        raise LLMError("No LLM provider is enabled")
+
+    deps = env.deps(None)
+    deps.llm_factory = factory
+    rid = env.make_schedule("auto")
+    execute_run(deps, rid)
+    assert ad.applied == [] and seen and set(seen) == {env.ids["user"]}
+    run = run_row(env, rid)
+    assert run.status == "failed" and "scoring" in run.error  # clear reason, no traceback
+    # with a per-user factory that works, the job is scored and applied
+    deps.llm_factory = lambda uid: scorer({"Python": 90})
+    execute_run(deps, env.make_schedule("auto"))
+    assert ad.applied == ["1"]
