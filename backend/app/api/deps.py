@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.security import InvalidToken, decode_token
 from app.models import User
+from app.services.llm import LLMClient, LLMError, get_llm
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -24,3 +25,11 @@ def current_user(
     if user is None or not user.is_active:
         raise unauth
     return user
+
+
+def optional_llm() -> LLMClient | None:
+    """None when no API key is configured, so uploads still work and can be parsed later."""
+    try:
+        return get_llm()
+    except LLMError:
+        return None
