@@ -1,0 +1,24 @@
+<html><body>
+<h1>Python Developer</h1><a class="comp-name">Acme Corp</a>
+<div class="styles_JDC__dang-inner-html__h0K4t">Needs Python and FastAPI.</div>
+<button id="apply-button">Apply</button>
+<div id="login_Layer" style="display:none">Login</div>
+<script>
+ let step = 0;
+ const qs = [["What is your expected CTC?", []], ["Are you willing to relocate?", ["Yes", "No"]]];
+ function bot() {
+   if (step >= qs.length) { document.body.insertAdjacentHTML('beforeend', '<div class="apply-msg">You have successfully applied to Python Developer</div>'); document.querySelector('.chatbot_Drawer')?.remove(); return; }
+   const [q, chips] = qs[step];
+   let d = document.querySelector('.chatbot_Drawer');
+   if (!d) { d = document.createElement('div'); d.className = 'chatbot_Drawer'; document.body.appendChild(d); }
+   d.innerHTML = '<div class="botMsg">' + q + '</div>' +
+     (chips.length ? '<div class="ssrc__radio-btn-container">' + chips.map(c => '<label>' + c + '</label>').join('') + '</div>'
+                   : '<div class="textArea" contenteditable="true"></div>') + '<div class="sendMsg">Save</div>';
+   let chosen = null;
+   d.querySelectorAll('label').forEach(l => l.onclick = () => { chosen = l.innerText; });
+   d.querySelector('.sendMsg').onclick = () => { window.__answers.push(chips.length ? chosen : d.querySelector('.textArea').innerText); step++; setTimeout(bot, 50); };
+ }
+ window.__answers = [];
+ document.getElementById('apply-button').onclick = bot;
+</script>
+</body></html>
