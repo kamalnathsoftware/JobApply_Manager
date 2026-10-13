@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # gemini (free tier) | groq (free tier) | ollama (local, free) | anthropic (paid API)
     llm_provider: str = "gemini"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     ollama_base_url: str = "http://localhost:11434/v1"

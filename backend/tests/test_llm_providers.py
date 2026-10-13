@@ -34,10 +34,10 @@ def test_gemini_request_shape_and_parse():
         )
         return httpx.Response(200, json=gemini_reply('{"score": 80}'))
 
-    g = GeminiLLM("KEY123", "gemini-2.5-flash", client=client_for(handler))
+    g = GeminiLLM("KEY123", "gemini-3.8-flash", client=client_for(handler))
     assert g.complete_json("sys", "user text") == {"score": 80}
     assert (
-        seen["url"].endswith("/models/gemini-2.5-flash:generateContent")
+        seen["url"].endswith("/models/gemini-3.8-flash:generateContent")
         and "KEY123" not in seen["url"]
     )
     assert seen["key"] == "KEY123"
