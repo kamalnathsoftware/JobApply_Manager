@@ -1,5 +1,5 @@
 """Assisted login: opens a VISIBLE browser, the human logs in (OTP/CAPTCHA included) and the
-resulting storage_state is saved encrypted. This code never types credentials, never solves or
+resulting storage_state is saved encrypted. This code only pre-fills the saved email/password; it never solves or
 bypasses CAPTCHAs/bot checks.
 
 Run as:  python -m app.workers.assisted_login <account_id>
@@ -11,7 +11,12 @@ import time
 from collections.abc import Callable
 
 from app.core.sites import SITES
-from app.services.accounts import LOGIN_TIMEOUT_S, get_storage_state, has_login_cookie
+from app.services.accounts import (
+    LOGIN_TIMEOUT_S,
+    get_password,
+    get_storage_state,
+    has_login_cookie,
+)
 
 log = logging.getLogger("assisted_login")
 POLL_S = 2.0
@@ -70,6 +75,36 @@ def _launch_visible(pw):
     )
 
 
+# site -> (email field, password field, submit button); only Naukri is pre-filled for now
+_FORMS = {
+    "naukri": (
+        "input[placeholder*='Email ID'], input#usernameField",
+        "input[type='password'], input#passwordField",
+        "button[type='submit']:has-text('Login'), button:has-text('Login'):not(:has-text('Use OTP'))",
+    ),
+}
+
+
+def prefill_login(page, site: str, email: str | None, password: str | None) -> None:
+    """Type the saved email/password into the login form and submit. OTP/CAPTCHA are left to the
+    human in the visible window."""
+    form = _FORMS.get(site)
+    if not form or not email:
+        return
+    email_sel, pw_sel, btn_sel = form
+    try:
+        page.wait_for_selector(email_sel, state="visible", timeout=30_000)
+        page.click(email_sel)
+        page.keyboard.type(email, delay=60)
+        if password:
+            page.click(pw_sel)
+            page.keyboard.type(password, delay=60)
+            page.wait_for_timeout(500)
+            page.locator(btn_sel).last.click()
+    except Exception as e:  # user can still type manually
+        log.warning("could not pre-fill login form: %s", e)
+
+
 def run(account_id: int) -> int:
     from playwright.sync_api import sync_playwright
 
@@ -96,6 +131,7 @@ def run(account_id: int) -> int:
                 page.goto(info.login_url, wait_until="commit", timeout=60_000)
             except Exception as e:  # page stays open; the user can still navigate/login manually
                 log.warning("initial navigation problem: %s", e)
+            prefill_login(page, acct.site, acct.login_email, get_password(acct))
             log.info(
                 "Browser opened for %s - log in, then it closes automatically "
                 "(company sites: close the window when done).",
