@@ -36,7 +36,7 @@ def has_login_cookie(site: str, state: dict | None) -> bool:
     if info.session_cookie is None:  # company sites: any cookie counts as a saved session
         return True
     return any(
-        c.get("name") == info.session_cookie
+        c.get("name") in (info.session_cookie, *info.alt_cookies)
         and (info.cookie_domain or "") in (c.get("domain") or "")
         for c in state["cookies"]
     )

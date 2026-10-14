@@ -49,6 +49,27 @@ def capture_session(
     return last
 
 
+_STEALTH_ARGS = ["--disable-blink-features=AutomationControlled", "--start-maximized"]
+
+
+def _launch_visible(pw):
+    """Prefer the user's installed Chrome/Edge: Naukri's bot protection often stalls the login
+    in Playwright's bundled Chromium. Falls back to bundled Chromium."""
+    for channel in ("chrome", "msedge"):
+        try:
+            return pw.chromium.launch(
+                headless=False,
+                channel=channel,
+                args=_STEALTH_ARGS,
+                ignore_default_args=["--enable-automation"],
+            )
+        except Exception as e:
+            log.info("channel %s unavailable: %s", channel, e)
+    return pw.chromium.launch(
+        headless=False, args=_STEALTH_ARGS, ignore_default_args=["--enable-automation"]
+    )
+
+
 def run(account_id: int) -> int:
     from playwright.sync_api import sync_playwright
 
@@ -64,12 +85,17 @@ def run(account_id: int) -> int:
         info = SITES[acct.site]
         existing = get_storage_state(acct)
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=False)
-            context = (
-                browser.new_context(storage_state=existing) if existing else browser.new_context()
-            )
+            browser = _launch_visible(pw)
+            ctx_kwargs = {"no_viewport": True, "locale": "en-IN"}
+            if existing:
+                ctx_kwargs["storage_state"] = existing
+            context = browser.new_context(**ctx_kwargs)
             page = context.new_page()
-            page.goto(info.login_url)
+            try:
+                # don't block on the load event: Naukri keeps loading trackers for a long time
+                page.goto(info.login_url, wait_until="commit", timeout=60_000)
+            except Exception as e:  # page stays open; the user can still navigate/login manually
+                log.warning("initial navigation problem: %s", e)
             log.info(
                 "Browser opened for %s - log in, then it closes automatically "
                 "(company sites: close the window when done).",
