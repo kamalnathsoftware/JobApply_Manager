@@ -46,8 +46,11 @@ def upload(
     user: User = Depends(current_user),
     auto_plan: bool = Form(default=True),
     timezone: str = Form(default="UTC"),
+    mode: str = Form(default="review"),
     llm: LLMClient | None = Depends(optional_llm),
 ) -> ResumeOut:
+    if mode not in ("dry_run", "review", "auto"):
+        raise HTTPException(422, "mode must be dry_run, review or auto")
     data = file.file.read(MAX_BYTES + 1)
     try:
         r = resume_service.create_resume(db, user.id, file.filename or "resume", data, label, llm)
@@ -61,7 +64,7 @@ def upload(
         db.commit()
     out = _out(r)
     if auto_plan and r.status == "parsed":
-        out.auto_plan = autoplan.ensure_plan(db, r, timezone=timezone).as_dict()
+        out.auto_plan = autoplan.ensure_plan(db, r, timezone=timezone, mode=mode).as_dict()
     return out
 
 

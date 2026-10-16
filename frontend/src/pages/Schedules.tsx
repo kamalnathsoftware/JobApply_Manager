@@ -55,6 +55,7 @@ export default function Schedules() {
               <div className="flex flex-wrap gap-2">
                 <Button small onClick={() => runNow(s.id)} disabled={run.isPending}>▶ Apply on all selected sites now</Button>
                 <Button small variant="secondary" onClick={() => setEditing(s)}>Edit</Button>
+                <Button small variant="secondary" disabled={toggle.isPending} onClick={() => toggle.mutate({ ...s, mode: s.mode === "auto" ? "review" : "auto" })}>{s.mode === "auto" ? "Switch to review first" : "Switch to auto-apply"}</Button>
                 <Button small variant="secondary" onClick={() => toggle.mutate({ ...s, enabled: !s.enabled })}>{s.enabled ? "Pause" : "Enable"}</Button>
                 <Button small variant="danger" onClick={() => confirm("Delete schedule?") && del.mutate(s.id)}>Delete</Button>
               </div>

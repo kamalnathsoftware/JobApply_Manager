@@ -15,12 +15,14 @@ export default function Resumes() {
   const [error, setError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Resume | null>(null);
   const [autoPlan, setAutoPlan] = useState(true);
+  const [mode, setMode] = useState<"review" | "auto">(() => (localStorage.getItem("planMode") === "auto" ? "auto" : "review"));
+  const pickMode = (m: "review" | "auto") => { setMode(m); try { localStorage.setItem("planMode", m); } catch { /* ignore */ } };
   const [planNote, setPlanNote] = useState<AutoPlan | null>(null);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const refreshPlan = () => ["profiles", "schedules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   async function planNow(id: number) {
     setError(null);
-    try { setPlanNote(await api<AutoPlan>(`/resumes/${id}/auto-plan?timezone=${encodeURIComponent(tz)}`, { method: "POST" })); refreshPlan(); }
+    try { setPlanNote(await api<AutoPlan>(`/resumes/${id}/auto-plan?mode=${mode}&timezone=${encodeURIComponent(tz)}`, { method: "POST" })); refreshPlan(); }
     catch (e) { setError(e); }
   }
   const makeDefault = useSend<Resume, number>("POST", (id) => `/resumes/${id}/default`, ["resumes"]);
@@ -36,6 +38,7 @@ export default function Resumes() {
     if (label) fd.append("label", label);
     fd.append("auto_plan", String(autoPlan));
     fd.append("timezone", tz);
+    fd.append("mode", mode);
     try {
       const r = await api<Resume>("/resumes", { method: "POST", body: fd });
       setPlanNote(r.auto_plan ?? null); refreshPlan();
@@ -55,7 +58,14 @@ export default function Resumes() {
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={autoPlan} onChange={(e) => setAutoPlan(e.target.checked)} />
-          After parsing, automatically create a search profile (title, experience, location from the resume) and a daily 09:00 schedule in <b>review</b> mode
+          After parsing, automatically create a search profile (title, experience, location from the resume) and a daily 09:00 schedule
+        </label>
+        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+          Matching jobs:
+          <select className="rounded border border-slate-300 px-2 py-1" value={mode} onChange={(e) => pickMode(e.target.value as "review" | "auto")}>
+            <option value="review">wait in the Review Queue for my approval (safe)</option>
+            <option value="auto">apply automatically (only jobs scoring above the match threshold)</option>
+          </select>
         </label>
         <ErrorText error={error} />
         {planNote && (

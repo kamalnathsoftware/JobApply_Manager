@@ -82,3 +82,27 @@ def test_opt_out_and_unparsed_resume(client, auth, llm):
     assert (
         client.post(f"/api/resumes/{r['id']}/auto-plan?mode=bogus", headers=auth).status_code == 422
     )
+
+
+def test_upload_can_create_the_schedule_in_auto_mode(client, auth, llm, db_session):
+    mk_account(client, auth)
+    r = client.post(
+        "/api/resumes",
+        headers=auth,
+        data={"mode": "auto"},
+        files={
+            "file": (
+                "cv.pdf",
+                __import__("tests.helpers", fromlist=["x"]).make_pdf(["x"]),
+                "application/pdf",
+            )
+        },
+    ).json()
+    assert db_session.get(Schedule, r["auto_plan"]["schedule_id"]).mode == "auto"
+    bad = client.post(
+        "/api/resumes",
+        headers=auth,
+        data={"mode": "yolo"},
+        files={"file": ("cv.pdf", b"x", "application/pdf")},
+    )
+    assert bad.status_code == 422
