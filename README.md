@@ -140,7 +140,7 @@ open the assisted-login browser. For real use run the **backend and worker nativ
 3. **Accounts**: add one per site login (label, email, resume, daily cap) → **Log in (assisted)** → a browser
    window opens on this machine and your saved email/password are typed in for you; complete any OTP/CAPTCHA yourself. It
    closes automatically and the session is saved (status `active`). Logging in does not start applying – that is the next step.
-4. **Search profiles**: create one (keywords, location, sites; for company sites paste apply URLs).
+4. **Search profiles**: uploading a resume now creates one automatically (job title, experience range and location from the parsed resume) plus a daily 09:00 schedule in `review` mode, so matches wait in the Review Queue until you approve them. Use "Auto-create search & schedule" on a resume to redo it after adding accounts. Or create one by hand (keywords, location, sites; for company sites paste apply URLs).
 5. **Schedules**: pick profile + accounts, mode **dry_run** first, threshold e.g. 60 → **▶ Apply on all selected sites now**
    and watch the live log. Check the **Applications** page for scores and reasoning.
 6. Switch to **review** (approve jobs yourself in **Review queue**) and finally **auto** once you trust it.

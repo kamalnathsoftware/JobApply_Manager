@@ -9,7 +9,7 @@ from app.api.deps import current_user, current_user_sse, optional_llm
 from app.core.db import get_db
 from app.models import Resume, User
 from app.schemas.resume import ParsedResume, ResumeOut, ResumeUpdate
-from app.services import resume_service
+from app.services import autoplan, resume_service
 from app.services.llm import LLMClient
 from app.services.resume_text import MAX_BYTES, UnsupportedResume
 
@@ -44,6 +44,8 @@ def upload(
     label: str | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
+    auto_plan: bool = Form(default=True),
+    timezone: str = Form(default="UTC"),
     llm: LLMClient | None = Depends(optional_llm),
 ) -> ResumeOut:
     data = file.file.read(MAX_BYTES + 1)
@@ -57,7 +59,25 @@ def upload(
             "No LLM configured - set LLM_PROVIDER and its key in .env",
         )
         db.commit()
-    return _out(r)
+    out = _out(r)
+    if auto_plan and r.status == "parsed":
+        out.auto_plan = autoplan.ensure_plan(db, r, timezone=timezone).as_dict()
+    return out
+
+
+@router.post("/{resume_id}/auto-plan")
+def auto_plan_resume(
+    resume_id: int,
+    timezone: str = "UTC",
+    mode: str = "review",
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    if mode not in ("dry_run", "review", "auto"):
+        raise HTTPException(422, "mode must be dry_run, review or auto")
+    return autoplan.ensure_plan(
+        db, _get(db, user, resume_id), timezone=timezone, mode=mode
+    ).as_dict()
 
 
 @router.get("", response_model=list[ResumeOut])
@@ -115,7 +135,10 @@ def reparse(
         )
     if r.profile:
         r.profile.user_edited = False  # explicit re-parse overwrites manual edits
-    return _out(resume_service.parse_resume(db, r, llm))
+    out = _out(resume_service.parse_resume(db, r, llm))
+    if r.status == "parsed":
+        out.auto_plan = autoplan.ensure_plan(db, r).as_dict()
+    return out
 
 
 @router.post("/{resume_id}/default", response_model=ResumeOut)

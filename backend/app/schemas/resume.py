@@ -125,6 +125,7 @@ class ResumeOut(BaseModel):
     created_at: datetime
     profile: ParsedResume | None = None
     profile_edited: bool = False
+    auto_plan: dict | None = None  # set only on upload: what was created automatically
 
 
 class ResumeUpdate(BaseModel):

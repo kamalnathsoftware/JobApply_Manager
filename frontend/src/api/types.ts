@@ -7,7 +7,8 @@ export interface ParsedResume {
   total_experience_years?: number | null; skills: string[]; experience: Experience[]; education: Education[];
   projects: Project[]; certifications: string[]; languages: string[];
 }
-export interface Resume { id: number; label: string; original_filename: string; is_default: boolean; status: string; parse_error: string | null; created_at: string; profile: ParsedResume | null; profile_edited: boolean }
+export interface Resume { id: number; label: string; original_filename: string; is_default: boolean; status: string; parse_error: string | null; created_at: string; profile: ParsedResume | null; profile_edited: boolean; auto_plan?: AutoPlan | null }
+export interface AutoPlan { search_profile_id: number | null; schedule_id: number | null; created_profile: boolean; created_schedule: boolean; message: string }
 
 export type Site = "naukri" | "linkedin" | "indeed" | "company";
 export const SITES: Site[] = ["naukri", "linkedin", "indeed", "company"];

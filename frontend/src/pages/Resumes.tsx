@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { api, apiUrl, ApiError } from "../api/client";
 import { useResumes, useSend } from "../api/hooks";
-import type { ParsedResume, Resume } from "../api/types";
+import { Link } from "react-router-dom";
+import type { AutoPlan, ParsedResume, Resume } from "../api/types";
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, PageHeader, csv, inputCls } from "../components/ui";
 
 export default function Resumes() {
@@ -13,6 +14,15 @@ export default function Resumes() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [editing, setEditing] = useState<Resume | null>(null);
+  const [autoPlan, setAutoPlan] = useState(true);
+  const [planNote, setPlanNote] = useState<AutoPlan | null>(null);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const refreshPlan = () => ["profiles", "schedules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  async function planNow(id: number) {
+    setError(null);
+    try { setPlanNote(await api<AutoPlan>(`/resumes/${id}/auto-plan?timezone=${encodeURIComponent(tz)}`, { method: "POST" })); refreshPlan(); }
+    catch (e) { setError(e); }
+  }
   const makeDefault = useSend<Resume, number>("POST", (id) => `/resumes/${id}/default`, ["resumes"]);
   const reparse = useSend<Resume, number>("POST", (id) => `/resumes/${id}/reparse`, ["resumes"]);
   const del = useSend<void, number>("DELETE", (id) => `/resumes/${id}`, ["resumes", "accounts"]);
@@ -24,8 +34,11 @@ export default function Resumes() {
     const fd = new FormData();
     fd.append("file", f);
     if (label) fd.append("label", label);
+    fd.append("auto_plan", String(autoPlan));
+    fd.append("timezone", tz);
     try {
-      await api("/resumes", { method: "POST", body: fd });
+      const r = await api<Resume>("/resumes", { method: "POST", body: fd });
+      setPlanNote(r.auto_plan ?? null); refreshPlan();
       setLabel(""); if (file.current) file.current.value = "";
       qc.invalidateQueries({ queryKey: ["resumes"] });
     } catch (e) { setError(e); } finally { setBusy(false); }
@@ -40,7 +53,17 @@ export default function Resumes() {
           <Field label="Label (optional)"><input className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Backend CV" /></Field>
           <Button onClick={upload} disabled={busy}>{busy ? "Uploading & parsing…" : "Upload"}</Button>
         </div>
+        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={autoPlan} onChange={(e) => setAutoPlan(e.target.checked)} />
+          After parsing, automatically create a search profile (title, experience, location from the resume) and a daily 09:00 schedule in <b>review</b> mode
+        </label>
         <ErrorText error={error} />
+        {planNote && (
+          <p className="mt-3 rounded bg-emerald-50 p-3 text-sm text-emerald-900">
+            {planNote.message} {planNote.search_profile_id && <Link className="underline" to="/search-profiles">Search profiles</Link>}
+            {planNote.schedule_id && <> · <Link className="underline" to="/schedules">Schedules</Link> · <Link className="underline" to="/review">Review queue</Link></>}
+          </p>
+        )}
       </Card>
       {isLoading ? <p>Loading…</p> : data.length === 0 ? <Empty>No resumes yet.</Empty> : data.map((r) => (
         <Card key={r.id}>
@@ -60,6 +83,7 @@ export default function Resumes() {
           <div className="mt-3 flex flex-wrap gap-2">
             {r.profile && <Button small variant="secondary" onClick={() => setEditing(r)}>Review / edit parsed data</Button>}
             {!r.is_default && <Button small variant="secondary" onClick={() => makeDefault.mutate(r.id)}>Make default</Button>}
+            {r.profile && <Button small variant="secondary" onClick={() => planNow(r.id)}>Auto-create search &amp; schedule</Button>}
             <Button small variant="secondary" onClick={() => reparse.mutate(r.id)} disabled={reparse.isPending}>Re-parse</Button>
             <a className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100" href={apiUrl(`/resumes/${r.id}/file`, true)} target="_blank" rel="noreferrer">Download</a>
             <Button small variant="danger" onClick={() => confirm("Delete this resume?") && del.mutate(r.id)}>Delete</Button>

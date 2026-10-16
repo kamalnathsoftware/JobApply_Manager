@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { useProfiles, useSend } from "../api/hooks";
+import { Link } from "react-router-dom";
+import { api } from "../api/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useProfiles, useResumes, useSend } from "../api/hooks";
 import { SITES, type SearchProfile } from "../api/types";
 import { Button, Card, Empty, ErrorText, Field, Modal, PageHeader, csv, inputCls } from "../components/ui";
 
@@ -12,7 +15,7 @@ export default function SearchProfiles() {
   return (
     <div className="space-y-5">
       <PageHeader title="Search profiles" subtitle="What to look for. A schedule combines a profile with site accounts." action={<Button onClick={() => setEditing("new")}>+ New profile</Button>} />
-      {isLoading ? <p>Loading…</p> : data.length === 0 ? <Empty>No search profiles yet.</Empty> : data.map((p) => (
+      {isLoading ? <p>Loading…</p> : data.length === 0 ? <Empty>No search profiles yet. <FromResume /></Empty> : data.map((p) => (
         <Card key={p.id}>
           <div className="flex items-center justify-between"><span className="font-semibold">{p.name}</span>
             <span className="flex gap-2"><Button small variant="secondary" onClick={() => setEditing(p)}>Edit</Button><Button small variant="danger" onClick={() => confirm("Delete profile and its schedules?") && del.mutate(p.id)}>Delete</Button></span></div>
@@ -63,4 +66,19 @@ function ProfileForm({ profile, onClose }: { profile: SearchProfile | null; onCl
       <div className="mt-4 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={!f.name || !f.keywords || save.isPending} onClick={submit}>Save</Button></div>
     </Modal>
   );
+}
+
+function FromResume() {
+  const { data: resumes = [] } = useResumes();
+  const qc = useQueryClient();
+  const [msg, setMsg] = useState("");
+  const r = resumes.find((x) => x.is_default && x.profile) ?? resumes.find((x) => x.profile);
+  if (!r) return <span>Upload a resume on the <Link className="underline" to="/resumes">Resumes</Link> page and one is created for you.</span>;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  async function go() {
+    const out = await api<{ message: string }>(`/resumes/${r!.id}/auto-plan?timezone=${encodeURIComponent(tz)}`, { method: "POST" });
+    setMsg(out.message);
+    ["profiles", "schedules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  }
+  return <span><Button small onClick={go}>Create from “{r.label}”</Button> {msg}</span>;
 }
