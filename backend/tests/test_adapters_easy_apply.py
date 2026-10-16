@@ -103,17 +103,19 @@ def test_linkedin_unknown_question_stops_and_discards(page, tmp_path):
     assert any((tmp_path / "shots").glob("*question.png"))
 
 
-def test_linkedin_external_job_is_skipped(page, tmp_path):
+def test_linkedin_external_job_follows_redirect(page, tmp_path):
     serve(
         page,
         {
-            "linkedin.com": "<html><body><h1>T</h1><button class='jobs-apply-button'>Apply</button></body></html>"
+            "linkedin.com": "<html><body><h1>T</h1><button class='jobs-apply-button' onclick=\"window.open('https://careers.initech.test/x')\">Apply</button></body></html>"
         },
     )
     ad = LinkedInAdapter(page, FAST)
     job = ad.get_job("https://www.linkedin.com/jobs/view/4009/")
     assert job.apply_type == "external"
-    assert ad.apply(job, ctx(tmp_path)).status == ApplyStatus.SKIPPED
+    with pytest.raises(NeedsHuman) as e:  # redirect target is a 404 page: no form to fill
+        ad.apply(job, ctx(tmp_path))
+    assert e.value.kind.startswith("external_")
 
 
 def test_indeed_search_and_url(page, monkeypatch):

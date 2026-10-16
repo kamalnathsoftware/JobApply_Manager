@@ -34,6 +34,10 @@ different login/resume per site account.
 * **Resume Manager** – PDF/DOCX upload, text extraction (pdfplumber / python-docx), Claude extracts a
   structured profile (JSON + normalized `skills` table). You can correct everything in the UI; edits are
   never overwritten unless you press *Re-parse*. Several resumes per user, one default, per-account choice.
+* **External applications** – when Naukri, LinkedIn or Indeed send you to the employer's own site
+  ("Apply on company site"), the worker follows the redirect (new tab or same tab) and completes the
+  application with the company-site form filler. Logins, account creation, unknown questions and
+  CAPTCHAs on that site stop only that application (`needs_human`, kind `external_*`), not the whole run.
 * **Site accounts** – several per site. Session cookies (Playwright `storage_state`) and optional
   passwords are Fernet-encrypted in the DB; cookies never touch disk in plain text and are never logged.
   *Assisted login* opens a visible browser, types the email/password you saved on the account and presses Login; you only handle OTP/CAPTCHA by hand. The session is then saved.

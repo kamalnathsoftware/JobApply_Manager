@@ -146,6 +146,80 @@ class SiteAdapter(ABC):
         self.h.pause(0.8, 2.0)
         self.check_blocked()
 
+    def apply_external(self, trigger, job: JobPosting, ctx: ApplyContext) -> ApplyResult:
+        """Follow an 'Apply on company site' button to the employer's own page and complete the
+        application there with the company-site form filler (same rules: never guesses, stops
+        with NeedsHuman on logins / account creation / unknown questions / CAPTCHAs).
+
+        `trigger` is the already-located button/link on the job board page."""
+        from app.adapters.company_site import CompanySiteAdapter
+
+        board_page = self.page
+        context = board_page.context
+        before = list(context.pages)
+        board_url = board_page.url
+        href = None
+        try:
+            href = trigger.get_attribute("href")
+        except Exception:
+            pass
+        self.h.click(trigger)
+
+        target = None
+        for _ in range(16):  # up to ~8s for a new tab or a same-tab navigation
+            new = [p for p in context.pages if p not in before]
+            if new:
+                target = new[-1]
+                break
+            if board_page.url != board_url:
+                target = board_page
+                break
+            board_page.wait_for_timeout(500)
+        if target is None:
+            if not href or not href.startswith("http"):
+                raise AdapterError("the company-site link did not open anything")
+            target = board_page
+            board_page.goto(href, wait_until="domcontentloaded")
+        try:
+            target.wait_for_load_state("domcontentloaded")
+        except Exception:
+            pass
+        self.h.pause(1.0, 2.0)
+
+        company = CompanySiteAdapter(target, self.h)
+        company._sleep = self._sleep
+        company.human_wait_s, company.human_poll_s = self.human_wait_s, self.human_poll_s
+        ext = JobPosting(
+            site=self.site,
+            external_id=job.external_id,
+            url=target.url,
+            title=job.title,
+            company=job.company,
+            apply_type="external",
+        )
+        try:
+            company.check_blocked()
+            res = company.apply_current_page(ext, ctx)
+        except NeedsHuman as e:
+            # The block is on the employer's site, not on this job-board account, so it must not
+            # stop the rest of the account's run (hence the external_ prefix).
+            company.screenshot(
+                ctx.screenshot_dir, f"{self.site}_{job.external_id}_external_{e.kind}"
+            )
+            raise NeedsHuman(f"external_{e.kind}", f"company site: {e.detail or e.kind}") from e
+        finally:
+            self.page = board_page
+            for p in list(context.pages):
+                if p not in before and p is not board_page and not p.is_closed():
+                    p.close()
+        if res.status == ApplyStatus.APPLIED:
+            return ApplyResult(
+                ApplyStatus.APPLIED,
+                "applied on company site (external redirect)",
+                res.screenshot_path,
+            )
+        return res
+
     def excluded(self, company: str | None, criteria: SearchCriteria) -> bool:
         c = (company or "").strip().lower()
         return bool(c) and any(

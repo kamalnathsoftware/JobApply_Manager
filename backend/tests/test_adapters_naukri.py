@@ -112,9 +112,61 @@ def test_apply_already_applied_and_external(page, tmp_path):
     job = ad.get_job("https://www.naukri.com/job-listings-x-111111111111")
     assert job.already_applied
     assert ad.apply(job, ctx(tmp_path)).status == ApplyStatus.ALREADY_APPLIED
-    serve_ext = "<html><body><h1>T</h1><button id='company-site-button'>Apply on company site</button></body></html>"
+    serve_ext = "<html><body><h1>T</h1><button id='company-site-button' onclick=\"window.open('https://careers.initech.test/x')\">Apply on company site</button></body></html>"
     page.unroute_all()
     serve(page, {"naukri.com": serve_ext})
     job = ad.get_job("https://www.naukri.com/job-listings-x-111111111111")
     assert job.apply_type == "external"
-    assert ad.apply(job, ctx(tmp_path)).status == ApplyStatus.SKIPPED
+    # the redirect target has no form -> stops for a person, tagged so the Naukri account keeps going
+    with pytest.raises(NeedsHuman) as e:
+        ad.apply(job, ctx(tmp_path))
+    assert e.value.kind.startswith("external_")
+
+
+COMPANY_CTX = {
+    "profile": {
+        "contact": {"name": "Asha Rao", "email": "asha@example.com", "phone": "+91 98765 43210"},
+        "education": [{"institution": "NIT", "degree": "B.Tech"}],
+        "total_experience_years": 5.0,
+    }
+}
+
+
+def _external_ctx(tmp_path):
+    cv = tmp_path / "Asha_Rao_CV.pdf"
+    cv.write_bytes(b"%PDF-1.4")
+    prof = COMPANY_CTX["profile"]
+    return ApplyContext(
+        prof,
+        str(cv),
+        QuestionResolver(prof, [BankEntry(["expected salary"], "20 LPA")]),
+        tmp_path / "shots",
+    )
+
+
+@pytest.mark.parametrize(
+    "button",
+    [
+        "<button id='company-site-button' onclick=\"window.open('https://careers.initech.test/jobs/1')\">Apply on company site</button>",
+        "<a id='company-site-button' href='https://careers.initech.test/jobs/1'>Apply on company site</a>",
+        "<a id='company-site-button' target='_blank' href='https://careers.initech.test/jobs/1'>Apply on company site</a>",
+    ],
+)
+def test_external_redirect_applies_on_company_site(page, tmp_path, button):
+    from tests.test_company_site import edu_llm
+
+    serve(
+        page,
+        {
+            "naukri.com": f"<html><body><h1>T</h1>{button}</body></html>",
+            "initech.test": "company_careers.html",
+        },
+    )
+    ad = NaukriAdapter(page, FAST)
+    job = ad.get_job("https://www.naukri.com/job-listings-x-111111111111")
+    assert job.apply_type == "external"
+    c = _external_ctx(tmp_path)
+    c.llm = edu_llm()
+    res = ad.apply(job, c)
+    assert res.status == ApplyStatus.APPLIED and "company site" in res.message
+    assert ad.page is page and len(page.context.pages) == 1  # extra tab closed, board page restored

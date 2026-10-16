@@ -142,10 +142,15 @@ class CompanySiteAdapter(SiteAdapter):
         return bool(SUCCESS_RE.search(body or "")) or bool(SUCCESS_URL_RE.search(self.page.url))
 
     def apply(self, job: JobPosting, ctx: ApplyContext) -> ApplyResult:
+        self.goto(job.url)
+        return self.apply_current_page(job, ctx)
+
+    def apply_current_page(self, job: JobPosting, ctx: ApplyContext) -> ApplyResult:
+        """Apply on whatever page is already open (used after a job board redirects here)."""
+
         def shot(n):
             return self.screenshot(ctx.screenshot_dir, f"company_{job.external_id}_{n}")
 
-        self.goto(job.url)
         self._gate(shot)
         if not self._has_form():
             entry = self.page.locator(SEL["apply_entry"]).first

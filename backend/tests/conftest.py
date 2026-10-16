@@ -74,4 +74,6 @@ def serve(page, routes: dict[str, str]):
                 return route.fulfill(status=200, content_type="text/html", body=html)
         route.fulfill(status=404, body="not found")
 
-    page.route("**/*", handler)
+    # routed on the context so popups / new tabs (external apply redirects) are served too
+    page.context.unroute_all()
+    page.context.route("**/*", handler)

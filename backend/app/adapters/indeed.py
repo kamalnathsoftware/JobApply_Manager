@@ -139,12 +139,9 @@ class IndeedAdapter(SiteAdapter):
             return ApplyResult(ApplyStatus.ALREADY_APPLIED, "already applied")
         btn = self.page.locator(SEL["apply_btn"]).first
         if not btn.count():
-            if self.page.locator(SEL["external_btn"]).count():
-                return ApplyResult(
-                    ApplyStatus.SKIPPED,
-                    "applies on the company website (external)",
-                    shot("external"),
-                )
+            ext = self.page.locator(SEL["external_btn"]).first
+            if ext.count():
+                return self.apply_external(ext, job, ctx)
             raise AdapterError("apply button not found")
         self.h.click(btn)
         self.page.wait_for_load_state("domcontentloaded")
