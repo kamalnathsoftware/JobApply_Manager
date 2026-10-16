@@ -109,10 +109,19 @@ def _has_display() -> bool:
 
 
 def spawn_login_process(account_id: int) -> subprocess.Popen:
+    """Runs the login window in its own process; its output goes to
+    <STORAGE_DIR>/logs/assisted_login_<id>.log (handy when something goes wrong)."""
+    from pathlib import Path
+
+    from app.core.config import get_settings
+
+    log_dir = Path(get_settings().storage_dir) / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    out = open(log_dir / f"assisted_login_{account_id}.log", "ab")  # noqa: SIM115
     return subprocess.Popen(
         [sys.executable, "-m", "app.workers.assisted_login", str(account_id)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=out,
+        stderr=subprocess.STDOUT,
     )
 
 

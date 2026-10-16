@@ -4,9 +4,9 @@ import { SITES, type Account, type Site } from "../api/types";
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, PageHeader, inputCls } from "../components/ui";
 
 const HELP: Record<string, string> = {
-  naukri: "A visible browser opens on the machine running the backend. Log in (OTP included); it closes itself when done.",
-  linkedin: "Log in (and pass any verification) in the browser window; it closes itself when logged in.",
-  indeed: "Log in in the browser window; it closes itself when logged in.",
+  naukri: "Opens a browser window and types your saved email/password for you. You only handle OTP/CAPTCHA; the window closes itself when login is detected.",
+  linkedin: "Types your saved email/password for you. Pass any security check yourself; the window closes itself once you are in.",
+  indeed: "Types your saved email and continues; Indeed often emails a code - enter it in the window.",
   company: "Optional: log in to a career portal yourself, then close the window to save the session.",
 };
 
@@ -20,7 +20,7 @@ export default function Accounts() {
   return (
     <div className="space-y-5">
       <PageHeader title="Site accounts" subtitle="One account per login. Use different emails/resumes per site. Passwords and cookies are encrypted at rest." action={<Button onClick={() => setEditing("new")}>+ Add account</Button>} />
-      <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">Assisted login opens a real browser window, so the backend must run on your own computer (not in Docker). The app never solves CAPTCHAs: if a site asks, you do it in that window.</p>
+      <p className="rounded bg-amber-50 p-3 text-sm text-amber-900" dangerouslySetInnerHTML={{ __html: "Assisted login opens a real browser window and fills in the email/password saved on the account (edit the account to add them). It never solves CAPTCHAs - if a site asks for a code or puzzle, do it in that window. After the status turns <b>active</b>, go to <b>Schedules → Run now</b> to start the workflow. The backend must run on your own computer (not in Docker)." }} />
       {isLoading ? <p>Loading…</p> : data.length === 0 ? <Empty>No accounts yet.</Empty> : data.map((a) => (
         <Card key={a.id}>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -64,7 +64,7 @@ function AccountForm({ account, onClose }: { account: Account | null; onClose: (
         {!account && <Field label="Site"><select className={inputCls} value={f.site} onChange={(e) => setF({ ...f, site: e.target.value as Site })}>{SITES.map((s) => <option key={s}>{s}</option>)}</select></Field>}
         <Field label="Label"><input className={inputCls} value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} placeholder="e.g. Naukri – personal email" /></Field>
         <Field label="Login email"><input className={inputCls} value={f.login_email} onChange={(e) => setF({ ...f, login_email: e.target.value })} /></Field>
-        <Field label="Password (optional, stored encrypted)" hint="Not needed for assisted login. Leave blank to keep the current value."><input type="password" autoComplete="new-password" className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+        <Field label="Password (stored encrypted)" hint="Typed into the login form for you during assisted login. Leave blank to keep the current value, or to type it yourself."><input type="password" autoComplete="new-password" className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
         <Field label="Resume for this account"><select className={inputCls} value={f.resume_id} onChange={(e) => setF({ ...f, resume_id: e.target.value === "" ? "" : Number(e.target.value) })}><option value="">Default resume</option>{resumes.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></Field>
         <Field label="Max applications per day" hint="Keep this modest (default 25) to respect site limits."><input type="number" min={1} max={200} className={inputCls} value={f.daily_cap} onChange={(e) => setF({ ...f, daily_cap: Number(e.target.value) })} /></Field>
         <ErrorText error={save.error} />

@@ -42,10 +42,17 @@ def has_login_cookie(site: str, state: dict | None) -> bool:
     )
 
 
-def save_storage_state(db: Session, acct: SiteAccount, state: dict, *, mark_login: bool) -> None:
+def save_storage_state(
+    db: Session,
+    acct: SiteAccount,
+    state: dict,
+    *,
+    mark_login: bool,
+    logged_in: bool = False,
+) -> None:
     acct.storage_state_enc = encrypt(json.dumps(state))
     if mark_login:
-        ok = has_login_cookie(acct.site, state)
+        ok = logged_in or has_login_cookie(acct.site, state)
         acct.status = "active" if ok else "needs_login"
         acct.status_note = None if ok else "Login was not completed"
         if ok:

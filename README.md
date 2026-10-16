@@ -36,7 +36,7 @@ different login/resume per site account.
   never overwritten unless you press *Re-parse*. Several resumes per user, one default, per-account choice.
 * **Site accounts** – several per site. Session cookies (Playwright `storage_state`) and optional
   passwords are Fernet-encrypted in the DB; cookies never touch disk in plain text and are never logged.
-  *Assisted login* opens a visible browser, you log in (OTP/CAPTCHA by hand), the session is saved.
+  *Assisted login* opens a visible browser, types the email/password you saved on the account and presses Login; you only handle OTP/CAPTCHA by hand. The session is then saved.
 * **Search profiles** – keywords, location, experience, salary, job type, posted-within-N-days,
   excluded companies, sites, company apply URLs.
 * **Schedules** – daily at HH:MM, weekdays, or cron; choose profile + accounts + daily cap + match
@@ -138,7 +138,8 @@ open the assisted-login browser. For real use run the **backend and worker nativ
 1. **Register**, then **Settings → Answer bank**: add notice period, expected CTC, relocation, … .
 2. **Resumes**: upload a PDF/DOCX, open *Review / edit parsed data*, fix anything wrong, set the default.
 3. **Accounts**: add one per site login (label, email, resume, daily cap) → **Log in (assisted)** → a browser
-   window opens on this machine; log in (OTP/CAPTCHA yourself). It closes automatically and the session is saved.
+   window opens on this machine and your saved email/password are typed in for you; complete any OTP/CAPTCHA yourself. It
+   closes automatically and the session is saved (status `active`). Logging in does not start applying – that is the next step.
 4. **Search profiles**: create one (keywords, location, sites; for company sites paste apply URLs).
 5. **Schedules**: pick profile + accounts, mode **dry_run** first, threshold e.g. 60 → **▶ Apply on all selected sites now**
    and watch the live log. Check the **Applications** page for scores and reasoning.
@@ -172,6 +173,7 @@ frontend/src/{pages,components,api,hooks}                         docker-compose
 
 ## Troubleshooting
 * **“Run now” stays `pending`** – the worker isn't running (`python -m app.workers.main`).
+* **Assisted login window does nothing / closes at once** – see `storage/logs/assisted_login_<account id>.log`; run `playwright install chromium` once.
 * **Assisted login says “No display available”** – the backend runs in Docker/SSH; run it natively on your desktop.
 * **Account shows `needs_login` / `needs_human`** – a session expired or the site showed a check; use *Re-login*.
 * **Resume `parse_failed`** – check `LLM_PROVIDER` and its key in `.env` (Settings shows what is configured), restart backend + worker, then *Re-parse*.

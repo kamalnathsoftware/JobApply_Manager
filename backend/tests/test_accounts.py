@@ -3,7 +3,7 @@ import json
 import pytest
 
 from app.api import accounts as accounts_api
-from app.models import SiteAccount
+from app.models import SiteAccount, User
 from app.services import accounts as svc
 from app.workers.assisted_login import capture_session
 
@@ -114,8 +114,16 @@ class FakeCtx:
 
 
 class FakePage:
-    def __init__(self, closed_after=10**9):
-        self.n, self.closed_after = 0, closed_after
+    def __init__(self, closed_after=10**9, urls=None):
+        self.n, self.closed_after, self.urls = (
+            0,
+            closed_after,
+            urls or ["https://www.naukri.com/nlogin/login"],
+        )
+
+    @property
+    def url(self):
+        return self.urls[min(self.n - 1, len(self.urls) - 1)]
 
     def is_closed(self):
         self.n += 1
@@ -124,18 +132,60 @@ class FakePage:
 
 NO = {"cookies": [], "origins": []}
 YES = {"cookies": [{"name": "nauk_at", "value": "v", "domain": ".naukri.com"}], "origins": []}
+OTHER = {
+    "cookies": [{"name": "some_other_cookie", "value": "v", "domain": ".naukri.com"}],
+    "origins": [],
+}
 
 
 def test_capture_session_stops_on_login_cookie():
     ctx = FakeCtx([NO, NO, YES])
     out = capture_session(ctx, FakePage(), "naukri", sleep=lambda s: None)
-    assert out == YES
+    assert out.state == YES and out.logged_in
+
+
+def test_capture_session_detects_login_from_url_even_if_cookie_name_differs():
+    ctx = FakeCtx([NO, OTHER, OTHER])
+    page = FakePage(
+        urls=[
+            "https://www.naukri.com/nlogin/login",
+            "https://www.naukri.com/nlogin/login",
+            "https://www.naukri.com/mnjuser/homepage",
+        ]
+    )
+    out = capture_session(ctx, page, "naukri", sleep=lambda s: None)
+    assert out.logged_in and out.state == OTHER
+
+
+def test_looks_logged_in_urls():
+    from app.workers.assisted_login import looks_logged_in
+
+    assert looks_logged_in("naukri", "https://www.naukri.com/mnjuser/homepage")
+    assert not looks_logged_in("naukri", "https://www.naukri.com/nlogin/login")
+    assert looks_logged_in("linkedin", "https://www.linkedin.com/feed/")
+    assert not looks_logged_in("linkedin", "https://www.linkedin.com/checkpoint/challenge/x")
+    assert not looks_logged_in("linkedin", "https://www.linkedin.com/login")
+    assert looks_logged_in("indeed", "https://in.indeed.com/")
+    assert not looks_logged_in("indeed", "https://secure.indeed.com/auth")
+    assert not looks_logged_in("company", "https://careers.x.com/feed")
+
+
+def test_saved_state_marks_active_when_url_proves_login(db_session, client):
+    client.post("/api/auth/register", json={"email": "u@example.com", "password": "password123"})
+    uid = db_session.query(User).one().id
+    acct = SiteAccount(user_id=uid, site="naukri", label="n")
+    db_session.add(acct)
+    db_session.commit()
+    svc.save_storage_state(db_session, acct, OTHER, mark_login=True)  # unknown cookie, no proof
+    assert acct.status == "needs_login"
+    svc.save_storage_state(db_session, acct, OTHER, mark_login=True, logged_in=True)
+    assert acct.status == "active" and acct.last_login_at is not None
 
 
 def test_capture_session_keeps_last_snapshot_when_window_closed():
     ctx = FakeCtx([NO, YES])  # user logs in on a site without auto-detect, then closes window
     out = capture_session(ctx, FakePage(closed_after=2), "company", sleep=lambda s: None)
-    assert out == YES
+    assert out.state == YES and not out.logged_in
 
 
 def test_capture_session_timeout_and_closed_browser():
@@ -148,5 +198,23 @@ def test_capture_session_timeout_and_closed_browser():
         sleep=lambda s: None,
         clock=lambda: next(t),
     )
-    assert out == NO
-    assert capture_session(FakeCtx([Exception]), FakePage(), "naukri", sleep=lambda s: None) is None
+    assert out.state == NO and not out.logged_in
+    assert (
+        capture_session(FakeCtx([Exception]), FakePage(), "naukri", sleep=lambda s: None).state
+        is None
+    )
+
+
+def test_spawn_writes_a_log_file(tmp_path, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "storage_dir", str(tmp_path))
+    seen = {}
+
+    class P:
+        def __init__(self, cmd, stdout, stderr):
+            seen["cmd"], seen["out"] = cmd, stdout.name
+
+    monkeypatch.setattr(accounts_api.subprocess, "Popen", P)
+    accounts_api.spawn_login_process(7)
+    assert seen["out"].endswith("assisted_login_7.log") and "7" in seen["cmd"]
