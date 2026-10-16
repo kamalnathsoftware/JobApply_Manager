@@ -11,6 +11,16 @@ const EMPTY: PersonalDetails = {
   notice_period: "", preferred_location: "", willing_to_relocate: "", work_authorization: "", requires_sponsorship: "",
 };
 
+
+const GENDER = ["Male", "Female", "Other", "Prefer not to say"];
+const MARITAL = ["Single", "Married", "Divorced", "Widowed", "Prefer not to say"];
+const DISABILITY = ["None", "Yes", "Prefer not to say"];
+const NOTICE = ["Immediate joiner", "15 days", "30 days", "45 days", "60 days", "90 days", "More than 90 days"];
+const WORK_AUTH = ["Yes – citizen", "Yes – permanent resident", "Yes – valid work permit / visa", "No – I need authorisation"];
+const NATIONALITY = ["Indian", "American", "British", "Canadian", "Australian", "German", "French", "Singaporean", "Emirati", "Sri Lankan", "Nepalese", "Bangladeshi", "Other"];
+const COUNTRY = ["India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France", "Singapore", "United Arab Emirates", "Sri Lanka", "Nepal", "Bangladesh", "Other"];
+const STATE = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry", "Other"];
+
 type TextKey = Exclude<keyof PersonalDetails, "date_of_birth" | "willing_to_relocate" | "requires_sponsorship">;
 
 export default function Personal() {
@@ -23,6 +33,20 @@ export default function Personal() {
   const text = (k: TextKey, label: string, ph?: string, hint?: string) => (
     <Field label={label} hint={hint}><input className={inputCls} value={f[k]} placeholder={ph} onChange={(e) => set(k, e.target.value)} /></Field>
   );
+  // A dropdown that keeps a previously saved value even if it is not in the list (e.g. "chennai" typed earlier).
+  const pick = (k: TextKey, label: string, options: string[], hint?: string) => {
+    const cur = f[k];
+    const opts = cur && !options.some((o) => o.toLowerCase() === cur.toLowerCase()) ? [cur, ...options] : options;
+    const value = opts.find((o) => o.toLowerCase() === cur.toLowerCase()) ?? "";
+    return (
+      <Field label={label} hint={hint}>
+        <select className={inputCls} value={value} onChange={(e) => set(k, e.target.value)}>
+          <option value="">Not set – ask me</option>
+          {opts.map((o) => <option key={o}>{o}</option>)}
+        </select>
+      </Field>
+    );
+  };
   const yesNo = (k: "willing_to_relocate" | "requires_sponsorship", label: string) => (
     <Field label={label}>
       <select className={inputCls} value={f[k]} onChange={(e) => set(k, e.target.value as "" | "Yes" | "No")}>
@@ -41,12 +65,12 @@ export default function Personal() {
         <h3 className="mb-3 font-semibold">About you</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Date of birth"><input type="date" className={inputCls} value={f.date_of_birth ?? ""} onChange={(e) => set("date_of_birth", e.target.value || null)} /></Field>
-          {text("gender", "Gender", "Male / Female / Other")}
-          {text("marital_status", "Marital status", "Single / Married")}
-          {text("nationality", "Nationality", "Indian")}
+          {pick("gender", "Gender", GENDER)}
+          {pick("marital_status", "Marital status", MARITAL)}
+          {pick("nationality", "Nationality", NATIONALITY)}
           {text("father_name", "Father's name")}
           {text("passport_number", "Passport number")}
-          {text("disability_status", "Disability status", "None", "Only if forms ask for it")}
+          {pick("disability_status", "Disability status", DISABILITY, "Only if forms ask for it")}
         </div>
       </Card>
       <Card>
@@ -54,9 +78,9 @@ export default function Personal() {
         <div className="grid gap-3 md:grid-cols-2">
           <div className="md:col-span-2">{text("address", "Address", "Door no, street, area")}</div>
           {text("city", "City", "Chennai")}
-          {text("state", "State / province", "Tamil Nadu")}
+          {pick("state", "State / province", STATE)}
           {text("postal_code", "PIN / postal code")}
-          {text("country", "Country", "India")}
+          {pick("country", "Country", COUNTRY)}
           {text("alternate_phone", "Alternate phone", "+91…", "Your main phone and email come from the resume")}
         </div>
       </Card>
@@ -65,10 +89,10 @@ export default function Personal() {
         <div className="grid gap-3 md:grid-cols-2">
           {text("current_ctc", "Current CTC", "6 LPA")}
           {text("expected_ctc", "Expected CTC", "9 LPA")}
-          {text("notice_period", "Notice period", "30 days")}
+          {pick("notice_period", "Notice period", NOTICE)}
           {text("preferred_location", "Preferred work location", "Chennai, Bengaluru, Remote")}
           {yesNo("willing_to_relocate", "Willing to relocate?")}
-          {text("work_authorization", "Work authorisation", "Yes – Indian citizen")}
+          {pick("work_authorization", "Work authorisation", WORK_AUTH)}
           {yesNo("requires_sponsorship", "Needs visa sponsorship?")}
         </div>
       </Card>

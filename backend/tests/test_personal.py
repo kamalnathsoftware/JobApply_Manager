@@ -129,3 +129,11 @@ def test_date_input_is_filled_in_iso_format(page):
         h,
     )
     assert page.input_value("#d") == "1995-03-07"
+
+
+def test_dropdown_wording_still_answers_yes_no_questions():
+    yes = resolver_for({"work_authorization": "Yes – citizen", "notice_period": "Immediate joiner"})
+    assert yes.resolve("Are you legally authorized to work in India?", ["Yes", "No"]) == "Yes"
+    assert yes.resolve("Notice period", ["Immediate joiner", "30 days"]) == "Immediate joiner"
+    no = resolver_for({"work_authorization": "No – I need authorisation"})
+    assert no.resolve("Authorized to work?", ["Yes", "No"]) == "No"

@@ -66,3 +66,19 @@ def test_cancel_pending_run_unblocks_run_now(client, auth, db_session):
     assert client.post(f"/api/schedules/{sid}/run", headers=auth).status_code == 202
     db_session.expire_all()
     assert db_session.query(ScheduleRun).count() == 2
+
+
+def test_api_applies_pending_migrations_on_startup(tmp_path, monkeypatch):
+    import sqlalchemy as sa
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db = tmp_path / "fresh.db"
+    monkeypatch.setattr(get_settings(), "database_url", f"sqlite:///{db}")
+    import alembic.context  # noqa: F401  (env.py reads the url at import time via get_settings)
+
+    with TestClient(app):  # entering the context runs the lifespan
+        pass
+    tables = sa.inspect(sa.create_engine(f"sqlite:///{db}")).get_table_names()
+    assert "personal_details" in tables and "alembic_version" in tables

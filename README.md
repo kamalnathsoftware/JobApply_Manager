@@ -109,7 +109,7 @@ python -m venv ../.venv
 # macOS/Linux: source ../.venv/bin/activate      Windows PowerShell: ..\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 playwright install chromium          # one-time browser download
-alembic upgrade head                 # creates the tables
+alembic upgrade head                 # creates the tables (the API also does this itself on start-up; set AUTO_MIGRATE=false to disable)
 uvicorn app.main:app --reload        # API on http://localhost:8000  (docs at /docs)
 ```
 **Worker** (terminal 2 – same venv, same `.env`; executes runs, schedules and the approval queue):
