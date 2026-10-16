@@ -52,3 +52,44 @@ def test_block_text_needs_a_sparse_page_and_names_the_phrase(page):
     serve(page, {"naukri.com": long_page})
     page.goto("https://www.naukri.com/qa-jobs")
     assert detect_block(page) is None
+
+
+WALL = "<html><body>Access Denied. Reference #18.1</body></html>"
+CLEARS = (
+    "<html><body><div id=c>Please verify you are human</div><script>"
+    "setTimeout(()=>{document.body.innerHTML='<h1>Jobs</h1>'},600)</script></body></html>"
+)
+
+
+def _adapter(page, wait):
+    from app.adapters.base import SiteAdapter
+
+    class A(SiteAdapter):
+        site = "naukri"
+
+        def search(self, c): ...
+        def get_job(self, u): ...
+        def apply(self, j, c): ...
+
+    a = A(page)
+    a.human_wait_s, a.human_poll_s = wait, 0.3
+    return a
+
+
+def test_waits_for_a_person_to_clear_a_check_then_continues(page):
+    serve(page, {"naukri.com": CLEARS})
+    page.goto("https://www.naukri.com/qa-jobs")
+    _adapter(page, wait=10).check_blocked()  # returns once the check is gone
+
+
+def test_gives_up_with_needs_human_when_never_cleared_or_not_allowed_to_wait(page):
+    import pytest
+
+    from app.adapters.base import NeedsHuman
+
+    serve(page, {"naukri.com": WALL})
+    page.goto("https://www.naukri.com/qa-jobs")
+    with pytest.raises(NeedsHuman):
+        _adapter(page, wait=1).check_blocked()
+    with pytest.raises(NeedsHuman):
+        _adapter(page, wait=0).check_blocked()

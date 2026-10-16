@@ -34,7 +34,10 @@ def open_adapter(account_id: int) -> Iterator[SiteAdapter]:
             context.set_default_timeout(20_000)
             page = context.new_page()
             try:
-                yield get_adapter_class(site)(page, Humanizer())
+                adapter = get_adapter_class(site)(page, Humanizer())
+                if not s.playwright_headless:  # a person can only help if they can see the window
+                    adapter.human_wait_s = s.human_wait_seconds
+                yield adapter
             finally:
                 try:  # persist refreshed cookies
                     new_state = context.storage_state()

@@ -2,6 +2,8 @@
 Playwright `page` that carries the user's saved session; they never log in by themselves and
 never try to defeat CAPTCHAs or bot checks (they raise NeedsHuman instead)."""
 
+import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -9,6 +11,8 @@ from pathlib import Path
 
 from app.adapters.humanize import Humanizer
 from app.services.answers import QuestionResolver
+
+log = logging.getLogger(__name__)
 
 
 class ApplyStatus(StrEnum):
@@ -83,9 +87,15 @@ class ApplyResult:
 class SiteAdapter(ABC):
     site: str = ""
 
+    # How long to wait for a person to clear a CAPTCHA / bot check in the visible browser window
+    # before giving up with NeedsHuman. 0 = do not wait (headless runs, tests).
+    human_wait_s: float = 0
+    human_poll_s: float = 3.0
+
     def __init__(self, page, humanizer: Humanizer | None = None):
         self.page = page
         self.h = humanizer or Humanizer()
+        self._sleep = time.sleep
 
     # -- required interface ---------------------------------------------------------
     @abstractmethod
@@ -111,6 +121,23 @@ class SiteAdapter(ABC):
         from app.adapters.guards import detect_block
 
         reason = detect_block(self.page)
+        if reason and self.human_wait_s > 0:
+            # Never solved automatically: the page stays open for YOU to complete it, then the
+            # run carries on by itself.
+            log.warning(
+                "%s: %s - waiting up to %ds for you to complete it in the browser window",
+                self.site,
+                reason,
+                self.human_wait_s,
+            )
+            waited = 0.0
+            while reason and waited < self.human_wait_s:
+                self._sleep(self.human_poll_s)
+                waited += self.human_poll_s
+                reason = detect_block(self.page)
+            if not reason:
+                log.info("%s: check cleared, continuing", self.site)
+                self.h.pause(1.0, 2.0)
         if reason:
             raise NeedsHuman("captcha", reason)
 

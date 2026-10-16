@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     storage_dir: str = "./storage"
     indeed_base_url: str = "https://in.indeed.com"  # use your country's Indeed domain
     playwright_headless: bool = False
+    # seconds to wait for you to solve a CAPTCHA / OTP prompt in the visible window (0 = fail fast)
+    human_wait_seconds: int = 300
     playwright_executable: str = ""  # optional path to chrome/chromium
     apply_gap_min_s: float = 20.0  # human-like pause between application attempts
     apply_gap_max_s: float = 60.0
