@@ -1,10 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { apiUrl } from "../api/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, apiUrl } from "../api/client";
 import { useAccounts, useProfiles, useRuns, useSchedules, useSend } from "../api/hooks";
 import type { LogEntry, Run, Schedule } from "../api/types";
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, PageHeader, fmt, inputCls } from "../components/ui";
 
 const MODES = { dry_run: "Dry run – find & score only", review: "Review – queue for my approval", auto: "Auto – submit automatically" } as const;
+
+function WorkerBanner() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["worker"], queryFn: () => api<{ alive: boolean; age_s: number | null }>("/system/worker"), refetchInterval: 4000 });
+  const start = useSend<{ started: boolean }, undefined>("POST", "/system/worker/start", ["worker"]);
+  if (!data) return null;
+  if (data.alive) return <p className="rounded bg-emerald-50 p-3 text-sm text-emerald-900">● Worker is running – runs start within a few seconds.</p>;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded bg-red-50 p-3 text-sm text-red-900">
+      <span>● Worker is <b>not running</b>, so runs stay “pending”. Start it here, or in a terminal: <code>python -m app.workers.main</code></span>
+      <Button small disabled={start.isPending} onClick={() => start.mutate(undefined, { onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["worker"] }), 6000) })}>
+        {start.isPending ? "Starting…" : start.isSuccess ? "Starting – wait a few seconds…" : "Start worker"}
+      </Button>
+    </div>
+  );
+}
 
 export default function Schedules() {
   const { data = [], isLoading } = useSchedules();
@@ -13,13 +30,22 @@ export default function Schedules() {
   const [editing, setEditing] = useState<Schedule | "new" | null>(null);
   const [watch, setWatch] = useState<number | null>(null);
   const run = useSend<Run, number>("POST", (id) => `/schedules/${id}/run`, ["runs"]);
+  const cancel = useSend<Run, number>("POST", (id) => `/runs/${id}/cancel`, ["runs"]);
+  const qc = useQueryClient();
+  const runNow = async (id: number) => {
+    try { // make sure a worker exists, otherwise the run would sit in "pending"
+      const w = await api<{ alive: boolean }>("/system/worker");
+      if (!w.alive) { await api("/system/worker/start", { method: "POST" }); qc.invalidateQueries({ queryKey: ["worker"] }); }
+    } catch { /* the banner explains how to start it */ }
+    run.mutate(id, { onSuccess: (r) => setWatch(r.id) });
+  };
   const del = useSend<void, number>("DELETE", (id) => `/schedules/${id}`, ["schedules", "runs"]);
   const toggle = useSend<Schedule, Schedule>("PUT", (s) => `/schedules/${s.id}`, ["schedules"]);
   const when = (s: Schedule) => (s.kind === "cron" ? `cron ${s.cron_expr}` : `${s.kind === "weekdays" ? "weekdays" : "daily"} at ${s.time_of_day}`) + ` (${s.timezone})`;
   return (
     <div className="space-y-5">
       <PageHeader title="Schedules" subtitle="Run a search profile on selected accounts – all in parallel, with random human-like delays." action={<Button onClick={() => setEditing("new")}>+ New schedule</Button>} />
-      <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">Runs are executed by the <b>worker</b> process (<code>python -m app.workers.main</code>) on your machine. If “Run now” stays pending, the worker is not running.</p>
+      <WorkerBanner />
       {isLoading ? <p>Loading…</p> : data.length === 0 ? <Empty>No schedules yet.</Empty> : data.map((s) => {
         const last = runs.find((r) => r.schedule_id === s.id);
         return (
@@ -27,14 +53,14 @@ export default function Schedules() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><span className="font-semibold">{s.name}</span> <Badge>{s.mode}</Badge> {!s.enabled && <Badge>disabled</Badge>}</div>
               <div className="flex flex-wrap gap-2">
-                <Button small onClick={() => run.mutate(s.id, { onSuccess: (r) => setWatch(r.id) })} disabled={run.isPending}>▶ Apply on all selected sites now</Button>
+                <Button small onClick={() => runNow(s.id)} disabled={run.isPending}>▶ Apply on all selected sites now</Button>
                 <Button small variant="secondary" onClick={() => setEditing(s)}>Edit</Button>
                 <Button small variant="secondary" onClick={() => toggle.mutate({ ...s, enabled: !s.enabled })}>{s.enabled ? "Pause" : "Enable"}</Button>
                 <Button small variant="danger" onClick={() => confirm("Delete schedule?") && del.mutate(s.id)}>Delete</Button>
               </div>
             </div>
             <p className="mt-1 text-sm text-slate-600">{when(s)} · accounts: {s.account_ids.map((id) => accounts.find((a) => a.id === id)?.label ?? `#${id}`).join(", ")} · threshold {s.match_threshold} · parallel {s.max_concurrency}</p>
-            <p className="text-xs text-slate-500">Next run: {fmt(s.next_run_at)}{last && <> · last run #{last.id} <Badge>{last.status}</Badge> <button className="underline" onClick={() => setWatch(last.id)}>view log</button></>}</p>
+            <p className="text-xs text-slate-500">Next run: {fmt(s.next_run_at)}{last && <> · last run #{last.id} <Badge>{last.status}</Badge> <button className="underline" onClick={() => setWatch(last.id)}>view log</button>{last.status === "pending" && <> · <button className="text-red-700 underline" onClick={() => cancel.mutate(last.id)}>cancel</button></>}</>}</p>
             {run.variables === s.id && <ErrorText error={run.error} />}
           </Card>
         );
@@ -44,7 +70,7 @@ export default function Schedules() {
         {runs.length === 0 ? <p className="text-sm text-slate-500">No runs yet.</p> : runs.map((r) => (
           <div key={r.id} className="flex items-center justify-between border-b py-1 text-sm last:border-0">
             <span>#{r.id} · {data.find((s) => s.id === r.schedule_id)?.name} · {r.trigger} · {fmt(r.created_at)}</span>
-            <span><Badge>{r.status}</Badge> <button className="ml-2 underline" onClick={() => setWatch(r.id)}>log</button></span>
+            <span><Badge>{r.status}</Badge> <button className="ml-2 underline" onClick={() => setWatch(r.id)}>log</button>{r.status === "pending" && <button className="ml-2 text-red-700 underline" onClick={() => cancel.mutate(r.id)}>cancel</button>}</span>
           </div>
         ))}
       </Card>

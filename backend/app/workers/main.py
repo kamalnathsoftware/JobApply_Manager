@@ -16,6 +16,7 @@ from sqlalchemy import select, update
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.models import Schedule, ScheduleRun
+from app.services import worker_status
 from app.services.runner import utcnow
 from app.services.scheduling import ScheduleError, build_trigger, next_fire
 from app.workers import jobs
@@ -82,6 +83,7 @@ def main() -> None:
     in_flight = threading.BoundedSemaphore(MAX_PARALLEL_RUNS)
 
     def poll_runs() -> None:
+        worker_status.touch_heartbeat()
         while in_flight.acquire(blocking=False):
             rid = jobs.claim_pending_run()
             if rid is None:
@@ -128,6 +130,7 @@ def main() -> None:
         jobstore="memory",
     )
     signal.signal(signal.SIGTERM, lambda *_: scheduler.shutdown(wait=False))
+    worker_status.touch_heartbeat()
     log.info("worker started")
     try:
         scheduler.start()

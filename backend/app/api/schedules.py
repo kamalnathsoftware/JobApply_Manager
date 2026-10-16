@@ -1,6 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -118,6 +119,21 @@ def _get_run(db: Session, user: User, rid: int) -> ScheduleRun:
     r = db.get(ScheduleRun, rid)
     if r is None or r.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+    return r
+
+
+@router.post("/runs/{rid}/cancel", response_model=RunOut)
+def cancel_run(rid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Cancel a run the worker has not started yet (e.g. the worker was not running)."""
+    r = _get_run(db, user, rid)
+    if r.status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending runs can be cancelled")
+    r.status, r.error, r.finished_at = (
+        "failed",
+        "cancelled by user",
+        datetime.now(UTC).replace(tzinfo=None),
+    )
+    db.commit()
     return r
 
 

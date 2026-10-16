@@ -184,3 +184,7 @@ frontend/src/{pages,components,api,hooks}                         docker-compose
 Secrets live only in `.env` (git-ignored). Passwords and cookies are encrypted with Fernet and never logged;
 the API never returns them. Resume files and screenshots are stored under `STORAGE_DIR` (screenshots can show
 personal data – keep that folder private). Change `JWT_SECRET`/passwords before exposing anything beyond localhost.
+
+
+### Worker status
+The Schedules page shows whether the worker is running (it writes a heartbeat file in `STORAGE_DIR`). If it is not, click **Start worker** (or **Run now**, which starts it for you); its output goes to `STORAGE_DIR/logs/worker.log`. A run stuck in `pending` can be cancelled from the same page.
