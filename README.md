@@ -73,7 +73,7 @@ Edit `.env`:
 | `GEMINI_API_KEY` / `GROQ_API_KEY` | free keys from https://aistudio.google.com/apikey and https://console.groq.com/keys |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | local Ollama, e.g. `http://localhost:11434/v1` and `qwen2.5:7b` |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | only if `LLM_PROVIDER=anthropic` (Claude Pro does **not** include API credits) |
-| `PLAYWRIGHT_HEADLESS` | `true` for unattended runs; `false` to watch the browser |
+| `PLAYWRIGHT_HEADLESS` | `false` (default) shows the browser window - Naukri and others often block headless browsers; `true` only if your sites tolerate it |
 | `APPLY_GAP_MIN_S` / `APPLY_GAP_MAX_S` | random pause between applications (seconds) |
 | `INDEED_BASE_URL` | your country's Indeed domain, e.g. `https://in.indeed.com` |
 | `CORS_ORIGINS`, `STORAGE_DIR` | defaults are fine locally |

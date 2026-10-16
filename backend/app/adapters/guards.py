@@ -13,6 +13,8 @@ BLOCK_TEXT = re.compile(
     re.I,
 )
 
+MAX_BLOCK_PAGE_CHARS = 1500
+
 
 def detect_block(page) -> str | None:
     try:
@@ -24,8 +26,10 @@ def detect_block(page) -> str | None:
         ).count():
             return "captcha element visible"
         text = page.evaluate("() => (document.body ? document.body.innerText : '').slice(0, 4000)")
-        if BLOCK_TEXT.search(text or ""):
-            return "bot-check text on page"
+        m = BLOCK_TEXT.search(text or "")
+        # real block pages are nearly empty; a long page that merely contains the phrase is content
+        if m and len(text.strip()) < MAX_BLOCK_PAGE_CHARS:
+            return f"bot-check text on page: '{m.group(0)}' ({(page.url or '')[:80]})"
     except Exception:
         return None
     return None

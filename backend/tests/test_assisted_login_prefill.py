@@ -34,3 +34,21 @@ def test_prefill_skips_when_no_email_or_no_form_or_bot_check(page):
     page.goto("https://www.naukri.com/nlogin/login")
     page.set_default_timeout(500)
     assert "not found" in prefill_login(page, "naukri", "me@example.com", "x")
+
+
+def test_block_text_needs_a_sparse_page_and_names_the_phrase(page):
+    from app.adapters.guards import detect_block
+
+    serve(page, {"naukri.com": "<html><body>Access Denied. Reference #18.1</body></html>"})
+    page.goto("https://www.naukri.com/qa-jobs")
+    msg = detect_block(page)
+    assert msg and "Access Denied" in msg and "naukri.com" in msg
+    page.unroute_all()
+    long_page = (
+        "<html><body>"
+        + "<p>QA Engineer opening, access denied to nobody.</p>" * 80
+        + "</body></html>"
+    )
+    serve(page, {"naukri.com": long_page})
+    page.goto("https://www.naukri.com/qa-jobs")
+    assert detect_block(page) is None

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     storage_dir: str = "./storage"
     indeed_base_url: str = "https://in.indeed.com"  # use your country's Indeed domain
-    playwright_headless: bool = True
+    playwright_headless: bool = False
     playwright_executable: str = ""  # optional path to chrome/chromium
     apply_gap_min_s: float = 20.0  # human-like pause between application attempts
     apply_gap_max_s: float = 60.0
