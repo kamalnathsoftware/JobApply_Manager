@@ -6,6 +6,7 @@ from app.api import (
     applications,
     auth,
     llm_settings,
+    personal,
     resumes,
     schedules,
     search_profiles,
@@ -22,3 +23,4 @@ api_router.include_router(schedules.router)
 api_router.include_router(applications.router)
 api_router.include_router(system.router)
 api_router.include_router(llm_settings.router)
+api_router.include_router(personal.router)

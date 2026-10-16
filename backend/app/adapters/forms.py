@@ -1,5 +1,6 @@
 """Generic form discovery + filling shared by every adapter."""
 
+import re
 from dataclasses import dataclass, field
 
 from app.adapters.humanize import Humanizer
@@ -89,9 +90,16 @@ def extract_fields(scope, root: str = "body") -> list[Field]:
     ]
 
 
+def _iso_date(value: str) -> str:
+    m = re.fullmatch(r"\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\s*", value)
+    return f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}" if m else value
+
+
 def fill_value(scope, f: Field, value: str, h: Humanizer) -> bool:
     loc = scope.locator(f'[data-jam="{f.id}"]')
-    if f.type in TEXTLIKE:
+    if f.type == "date":
+        loc.fill(_iso_date(value))  # <input type=date> takes yyyy-mm-dd and rejects keystrokes
+    elif f.type in TEXTLIKE:
         h.type_into(loc, value)
     elif f.type == "select":
         opt = match_option(value, f.options)

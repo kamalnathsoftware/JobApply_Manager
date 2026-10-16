@@ -39,3 +39,10 @@ export interface Stats {
   recent_runs: { id: number; schedule: string | null; status: string; started_at: string | null; summary: Record<string, number> | null }[];
   attention: { awaiting_approval: number; needs_human: number; accounts_need_login: number };
 }
+
+export interface PersonalDetails {
+  date_of_birth: string | null; gender: string; marital_status: string; nationality: string; father_name: string;
+  passport_number: string; disability_status: string; address: string; city: string; state: string; postal_code: string;
+  country: string; alternate_phone: string; current_ctc: string; expected_ctc: string; notice_period: string;
+  preferred_location: string; willing_to_relocate: "" | "Yes" | "No"; work_authorization: string; requires_sponsorship: "" | "Yes" | "No";
+}

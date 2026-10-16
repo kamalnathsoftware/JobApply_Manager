@@ -4,6 +4,7 @@ import { useAuth } from "./hooks/useAuth";
 import Accounts from "./pages/Accounts";
 import Applications from "./pages/Applications";
 import Dashboard from "./pages/Dashboard";
+import Personal from "./pages/Personal";
 import Login from "./pages/Login";
 import Resumes from "./pages/Resumes";
 import ReviewQueue from "./pages/ReviewQueue";
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="schedules" element={<Schedules />} />
         <Route path="review" element={<ReviewQueue />} />
         <Route path="applications" element={<Applications />} />
+        <Route path="personal" element={<Personal />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

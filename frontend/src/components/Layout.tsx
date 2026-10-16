@@ -2,7 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 const nav = [
-  ["/", "Dashboard"], ["/resumes", "Resumes"], ["/accounts", "Accounts"],
+  ["/", "Dashboard"], ["/resumes", "Resumes"], ["/accounts", "Accounts"], ["/personal", "Personal details"],
   ["/search-profiles", "Search Profiles"], ["/schedules", "Schedules"],
   ["/review", "Review Queue"], ["/applications", "Applications"], ["/settings", "Settings"],
 ] as const;

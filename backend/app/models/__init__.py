@@ -10,6 +10,7 @@ from app.models.jobs import (
     SearchProfile,
 )
 from app.models.llm_provider import LLMProviderSetting
+from app.models.personal import PersonalDetails
 from app.models.resume import Resume, ResumeProfile, Skill
 from app.models.user import User
 
@@ -20,6 +21,7 @@ __all__ = [
     "Base",
     "Job",
     "LLMProviderSetting",
+    "PersonalDetails",
     "Resume",
     "ResumeProfile",
     "Schedule",

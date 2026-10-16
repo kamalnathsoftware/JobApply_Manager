@@ -77,6 +77,7 @@ def match_option(answer: str, options: list[str]) -> str | None:
 class BankEntry:
     patterns: list[str]
     answer: str
+    sensitive: bool = False  # never included in prompts sent to an LLM provider
 
 
 @dataclass

@@ -33,6 +33,7 @@ from app.models import (
     SearchProfile,
     SiteAccount,
 )
+from app.services import personal
 from app.services.answers import BankEntry, QuestionResolver
 from app.services.llm import LLMClient, LLMError
 from app.services.matching import score_job
@@ -123,13 +124,15 @@ def write_log(
 # --------------------------------------------------------------------------- helpers
 def build_resolver(db: Session, user_id: int, profile: dict) -> QuestionResolver:
     entries = db.scalars(select(AnswerBankEntry).where(AnswerBankEntry.user_id == user_id))
+    bank = [BankEntry(list(e.patterns), e.answer) for e in entries]
+    # explicit answer-bank entries win; personal details fill in what the bank does not cover
     return QuestionResolver(
-        profile=profile, bank=[BankEntry(list(e.patterns), e.answer) for e in entries]
+        profile=profile, bank=bank + personal.entries(personal.load(db, user_id))
     )
 
 
 def bank_dicts(resolver: QuestionResolver) -> list[dict]:
-    return [{"patterns": b.patterns, "answer": b.answer} for b in resolver.bank]
+    return [{"patterns": b.patterns, "answer": b.answer} for b in resolver.bank if not b.sensitive]
 
 
 def job_to_posting(job: Job) -> JobPosting:
