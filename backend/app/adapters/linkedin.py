@@ -1,4 +1,4 @@
-"""LinkedIn adapter -- Easy Apply jobs ONLY (external 'Apply' jobs are skipped).
+"""LinkedIn adapter -- Easy Apply jobs, plus external 'Apply' jobs via the company-site flow.
 
 LinkedIn restricts automation in its User Agreement and aggressively checks for it; use this
 at low volume, accept that your account may be limited, and never expect it to get past
@@ -164,11 +164,10 @@ class LinkedInAdapter(SiteAdapter):
         if self.page.locator(SEL["applied"]).first.count():
             return ApplyResult(ApplyStatus.ALREADY_APPLIED, "already applied")
         if not self._is_easy_apply():
-            return ApplyResult(
-                ApplyStatus.SKIPPED,
-                "not an Easy Apply job (external application)",
-                shot("external"),
-            )
+            ext = self.page.locator(SEL["apply_btn"]).first
+            if not ext.count():
+                raise AdapterError("apply button not found")
+            return self.apply_external(ext, job, ctx)
         self.h.click(self.page.locator(SEL["apply_btn"]).first)
         self.h.pause(1.0, 2.0)
         self.check_blocked()
