@@ -338,9 +338,11 @@ def _run_account_locked(deps, db, run, schedule, acct, sp, profile, counts, say)
         bank=bank_dicts(resolver),
     )
     with deps.open_adapter(acct.id) as adapter:
+        adapter.notify = say
+        say("searching for jobs...")
         postings = adapter.search(criteria_from(sp))
         say(f"search returned {len(postings)} jobs")
-        for p in postings:
+        for n, p in enumerate(postings, 1):
             job = upsert_job(db, acct.user_id, p)
             app = db.scalar(
                 select(Application).where(
@@ -371,6 +373,7 @@ def _run_account_locked(deps, db, run, schedule, acct, sp, profile, counts, say)
             if app.score is None:
                 if not job.description or len(job.description) < 200:
                     try:
+                        say(f"[{n}/{len(postings)}] reading: {job.title} @ {job.company}")
                         full = adapter.get_job(job.url)
                         job = upsert_job(db, acct.user_id, full)
                         if full.already_applied:
@@ -428,6 +431,7 @@ def _run_account_locked(deps, db, run, schedule, acct, sp, profile, counts, say)
                 counts.queued += 1
                 db.commit()
                 continue
+            say(f"[{n}/{len(postings)}] applying: {job.title} @ {job.company}")
             stop = apply_one(db, deps, adapter, app, job, ctx, run.id, counts)
             if app.status == "applied":
                 quota -= 1
@@ -490,6 +494,15 @@ def execute_run(deps: RunDeps, run_id: int) -> None:
         write_log(db, f"run #{run.id} {run.status}: {total.as_dict()}", run_id=run.id)
 
 
+def _note_waiting(db: Session, apps: list[Application], why: str) -> None:
+    changed = False
+    for a in apps:
+        if a.status_note != why:
+            a.status_note, changed = why, True
+    if changed:
+        db.commit()
+
+
 # --------------------------------------------------------- approved (review queue) items
 def process_approved(deps: RunDeps) -> int:
     """Apply queued applications the user approved. Returns number attempted."""
@@ -521,13 +534,17 @@ def process_approved(deps: RunDeps) -> int:
                 )
             )
             resume, profile = resolve_resume_profile(db, acct)
-            if not apps or profile is None:
+            if not apps:
+                continue
+            if profile is None:
+                _note_waiting(db, apps, "no parsed resume for this account - upload one on Resumes")
                 continue
             run = db.get(ScheduleRun, apps[0].schedule_run_id) if apps[0].schedule_run_id else None
             schedule = db.get(Schedule, run.schedule_id) if run else None
             tz = schedule.timezone if schedule else "UTC"
             quota = remaining_quota(db, acct, schedule, tz)
             if quota <= 0:
+                _note_waiting(db, apps, "daily application cap reached - will apply tomorrow")
                 continue
             counts, h = Counts(), deps.humanizer_factory()
             ctx = ApplyContext(
@@ -540,8 +557,18 @@ def process_approved(deps: RunDeps) -> int:
             )
             try:
                 with deps.open_adapter(acct_id) as adapter:
+                    rid = apps[0].schedule_run_id
+
+                    tag = f"[{acct.site}:{acct.label}]"
+
+                    def say(msg, level="info", rid=rid, tag=tag):
+                        write_log(db, f"{tag} {msg}", run_id=rid, level=level)
+
+                    adapter.notify = say
+                    say(f"applying {min(len(apps), quota)} approved job(s)")
                     for app in apps[:quota]:
                         job = db.get(Job, app.job_id)
+                        say(f"applying: {job.title} @ {job.company}")
                         attempted += 1
                         stop = apply_one(
                             db, deps, adapter, app, job, ctx, app.schedule_run_id, counts

@@ -123,7 +123,7 @@ def main() -> None:
     scheduler.add_job(
         jobs.approved_queue_tick,
         "interval",
-        seconds=60,
+        seconds=10,  # approved jobs start applying within seconds, not a minute
         id="approved_queue",
         replace_existing=True,
         max_instances=1,

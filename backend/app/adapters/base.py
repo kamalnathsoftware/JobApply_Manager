@@ -96,6 +96,8 @@ class SiteAdapter(ABC):
         self.page = page
         self.h = humanizer or Humanizer()
         self._sleep = time.sleep
+        # progress callback (message, level); the runner points it at the run log shown in the UI
+        self.notify = lambda msg, level="info": log.info("%s: %s", self.site, msg)
 
     # -- required interface ---------------------------------------------------------
     @abstractmethod
@@ -124,11 +126,10 @@ class SiteAdapter(ABC):
         if reason and self.human_wait_s > 0:
             # Never solved automatically: the page stays open for YOU to complete it, then the
             # run carries on by itself.
-            log.warning(
-                "%s: %s - waiting up to %ds for you to complete it in the browser window",
-                self.site,
-                reason,
-                self.human_wait_s,
+            self.notify(
+                f"{reason} - complete it in the browser window; I will continue by myself "
+                f"(waiting up to {int(self.human_wait_s)}s)",
+                "warn",
             )
             waited = 0.0
             while reason and waited < self.human_wait_s:
@@ -136,7 +137,7 @@ class SiteAdapter(ABC):
                 waited += self.human_poll_s
                 reason = detect_block(self.page)
             if not reason:
-                log.info("%s: check cleared, continuing", self.site)
+                self.notify("check cleared, continuing")
                 self.h.pause(1.0, 2.0)
         if reason:
             raise NeedsHuman("captcha", reason)

@@ -354,6 +354,23 @@ def test_process_approved_applies_only_approved_within_quota(env):
     assert sorted(ad.applied) == ["1", "2"]
     assert process_approved(env.deps(scorer({}))) == 0  # quota exhausted
     assert list(statuses(env).values()).count("queued") == 1
+    with env.factory() as db:  # the one left over says why it is still waiting
+        left = db.scalars(select(Application).where(Application.status == "queued")).one()
+        assert "daily application cap" in left.status_note
+
+
+def test_run_log_shows_per_job_progress(env):
+    a0 = env.ids["accts"][0]
+    env.adapters[a0] = FakeAdapter([posting(1), posting(2)])
+    rid = env.make_schedule("auto")
+    execute_run(env.deps(scorer({"Python": 90})), rid)
+    with env.factory() as db:
+        msgs = [
+            r.message
+            for r in db.scalars(select(ApplicationLog).where(ApplicationLog.schedule_run_id == rid))
+        ]
+    assert any("searching for jobs" in m for m in msgs)
+    assert any("[1/2] applying:" in m for m in msgs) and any("[2/2] applying:" in m for m in msgs)
 
 
 def test_answered_needs_human_can_be_requeued_and_applied(env):

@@ -3,25 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiUrl } from "../api/client";
 import { useAccounts, useProfiles, useRuns, useSchedules, useSend } from "../api/hooks";
 import type { LogEntry, Run, Schedule } from "../api/types";
+import WorkerBanner from "../components/WorkerBanner";
 import { Badge, Button, Card, Empty, ErrorText, Field, Modal, PageHeader, fmt, inputCls } from "../components/ui";
 
-const MODES = { dry_run: "Dry run – find & score only", review: "Review – queue for my approval", auto: "Auto – submit automatically" } as const;
-
-function WorkerBanner() {
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["worker"], queryFn: () => api<{ alive: boolean; age_s: number | null }>("/system/worker"), refetchInterval: 4000 });
-  const start = useSend<{ started: boolean }, undefined>("POST", "/system/worker/start", ["worker"]);
-  if (!data) return null;
-  if (data.alive) return <p className="rounded bg-emerald-50 p-3 text-sm text-emerald-900">● Worker is running – runs start within a few seconds.</p>;
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded bg-red-50 p-3 text-sm text-red-900">
-      <span>● Worker is <b>not running</b>, so runs stay “pending”. Start it here, or in a terminal: <code>python -m app.workers.main</code></span>
-      <Button small disabled={start.isPending} onClick={() => start.mutate(undefined, { onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["worker"] }), 6000) })}>
-        {start.isPending ? "Starting…" : start.isSuccess ? "Starting – wait a few seconds…" : "Start worker"}
-      </Button>
-    </div>
-  );
-}
+const MODES = { dry_run: "Only find & score (never apply)", review: "Queue for my approval (Review Queue)", auto: "Apply automatically" } as const;
 
 export default function Schedules() {
   const { data = [], isLoading } = useSchedules();
@@ -41,6 +26,7 @@ export default function Schedules() {
   };
   const del = useSend<void, number>("DELETE", (id) => `/schedules/${id}`, ["schedules", "runs"]);
   const toggle = useSend<Schedule, Schedule>("PUT", (s) => `/schedules/${s.id}`, ["schedules"]);
+  const setMode = (s: Schedule, mode: Schedule["mode"]) => toggle.mutate({ ...s, mode });
   const when = (s: Schedule) => (s.kind === "cron" ? `cron ${s.cron_expr}` : `${s.kind === "weekdays" ? "weekdays" : "daily"} at ${s.time_of_day}`) + ` (${s.timezone})`;
   return (
     <div className="space-y-5">
@@ -51,15 +37,22 @@ export default function Schedules() {
         return (
           <Card key={s.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div><span className="font-semibold">{s.name}</span> <Badge>{s.mode}</Badge> {!s.enabled && <Badge>disabled</Badge>}</div>
+              <div><span className="font-semibold">{s.name}</span> {!s.enabled && <Badge>disabled</Badge>}</div>
               <div className="flex flex-wrap gap-2">
                 <Button small onClick={() => runNow(s.id)} disabled={run.isPending}>▶ Apply on all selected sites now</Button>
                 <Button small variant="secondary" onClick={() => setEditing(s)}>Edit</Button>
-                <Button small variant="secondary" disabled={toggle.isPending} onClick={() => toggle.mutate({ ...s, mode: s.mode === "auto" ? "review" : "auto" })}>{s.mode === "auto" ? "Switch to review first" : "Switch to auto-apply"}</Button>
                 <Button small variant="secondary" onClick={() => toggle.mutate({ ...s, enabled: !s.enabled })}>{s.enabled ? "Pause" : "Enable"}</Button>
                 <Button small variant="danger" onClick={() => confirm("Delete schedule?") && del.mutate(s.id)}>Delete</Button>
               </div>
             </div>
+            <label className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-medium">When a job matches:</span>
+              <select className="rounded border border-slate-300 bg-white px-2 py-1" value={s.mode} disabled={toggle.isPending} onChange={(e) => setMode(s, e.target.value as Schedule["mode"])}>
+                {(Object.keys(MODES) as Schedule["mode"][]).map((m) => <option key={m} value={m}>{MODES[m]}</option>)}
+              </select>
+              {toggle.isPending && toggle.variables?.id === s.id && <span className="text-slate-500">saving…</span>}
+            </label>
+            {toggle.variables?.id === s.id && <ErrorText error={toggle.error} />}
             <p className="mt-1 text-sm text-slate-600">{when(s)} · accounts: {s.account_ids.map((id) => accounts.find((a) => a.id === id)?.label ?? `#${id}`).join(", ")} · threshold {s.match_threshold} · parallel {s.max_concurrency}</p>
             <p className="text-xs text-slate-500">Next run: {fmt(s.next_run_at)}{last && <> · last run #{last.id} <Badge>{last.status}</Badge> <button className="underline" onClick={() => setWatch(last.id)}>view log</button>{last.status === "pending" && <> · <button className="text-red-700 underline" onClick={() => cancel.mutate(last.id)}>cancel</button></>}</>}</p>
             {run.variables === s.id && <ErrorText error={run.error} />}

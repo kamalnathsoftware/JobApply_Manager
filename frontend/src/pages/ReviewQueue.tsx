@@ -2,20 +2,24 @@ import { useState } from "react";
 import { useApplications, useSend } from "../api/hooks";
 import type { Application } from "../api/types";
 import AppDetail from "../components/AppDetail";
+import WorkerBanner from "../components/WorkerBanner";
 import { Badge, Button, Card, Empty, ErrorText, PageHeader } from "../components/ui";
 
 export default function ReviewQueue() {
   const queued = useApplications("status=queued&limit=200");
   const human = useApplications("status=needs_human&limit=200");
+  const done = useApplications("status=applied,failed&limit=10");
   const [detail, setDetail] = useState<number | null>(null);
   const [picked, setPicked] = useState<number[]>([]);
   const approve = useSend<unknown, { ids: number[] }>("POST", "/applications/approve", ["applications", "stats"]);
   const reject = useSend<unknown, { ids: number[] }>("POST", "/applications/reject", ["applications", "stats"]);
+  const retryFailed = useSend<unknown, number>("POST", (id) => `/applications/${id}/retry`, ["applications", "stats"]);
   const items = queued.data?.items ?? [];
   const toggle = (id: number) => setPicked(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
   return (
     <div className="space-y-6">
       <PageHeader title="Review queue" subtitle="Approved jobs are submitted by the worker, within each account's daily cap." />
+      <WorkerBanner />
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Needs you ({human.data?.total ?? 0})</h3>
@@ -41,12 +45,27 @@ export default function ReviewQueue() {
                 <div className="flex flex-wrap items-center gap-2"><button className="font-semibold underline-offset-2 hover:underline" onClick={() => setDetail(a.id)}>{a.job.title}</button>
                   <span className="text-sm text-slate-600">{a.job.company}</span><Badge>{a.job.site}</Badge>
                   <span className={`rounded px-1.5 text-xs font-bold ${(a.score ?? 0) >= 80 ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>{a.score}/100</span>
-                  {a.approved && <Badge>approved – waiting for worker</Badge>}</div>
+                  {a.approved && <Badge>approved – applying soon</Badge>}</div>
                 <p className="mt-1 text-sm text-slate-600">{a.score_reasoning}</p>
                 <p className="text-xs text-slate-400">{[a.job.location, a.job.salary, a.job.experience].filter(Boolean).join(" · ")} · via {a.account_label}{a.status_note ? ` · ${a.status_note}` : ""}</p>
               </div>
               {!a.approved && <div className="flex gap-2"><Button small onClick={() => approve.mutate({ ids: [a.id] })}>Approve</Button><Button small variant="secondary" onClick={() => reject.mutate({ ids: [a.id] })}>Reject</Button></div>}
             </div>
+          </Card>
+        ))}
+      </section>
+      <section className="space-y-3">
+        <h3 className="text-lg font-semibold">Recent results</h3>
+        <p className="text-sm text-slate-500">What happened to jobs after approval. Approved jobs start within about 10 seconds while the worker runs; each application takes a minute or more because it pauses like a person would.</p>
+        {(done.data?.items ?? []).length === 0 ? <Empty>Nothing applied yet.</Empty> : done.data!.items.map((a) => (
+          <Card key={a.id}>
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="font-semibold hover:underline" onClick={() => setDetail(a.id)}>{a.job.title}</button>
+              <span className="text-sm text-slate-600">{a.job.company}</span><Badge>{a.job.site}</Badge>
+              <span className={`rounded px-1.5 text-xs font-bold ${a.status === "applied" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{a.status}</span>
+            </div>
+            {a.status_note && <p className="mt-1 text-sm text-slate-600">{a.status_note}</p>}
+            {a.status === "failed" && <div className="mt-2"><Button small variant="secondary" onClick={() => retryFailed.mutate(a.id)}>Retry</Button></div>}
           </Card>
         ))}
       </section>
