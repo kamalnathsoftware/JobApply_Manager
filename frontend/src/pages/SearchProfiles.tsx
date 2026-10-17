@@ -52,12 +52,19 @@ function ProfileForm({ profile, onClose }: { profile: SearchProfile | null; onCl
         <Field label="Keywords (comma separated)"><input className={inputCls} value={f.keywords} onChange={set("keywords")} placeholder="python, fastapi" /></Field>
         <Field label="Location"><input className={inputCls} value={f.location} onChange={set("location")} placeholder="Bengaluru" /></Field>
         <Field label="Job type"><select className={inputCls} value={f.job_type} onChange={set("job_type")}><option value="">Any</option><option value="full_time">Full time</option><option value="contract">Contract</option><option value="part_time">Part time</option><option value="internship">Internship</option></select></Field>
-        <Field label="Experience min (yrs)"><input type="number" className={inputCls} value={f.experience_min} onChange={set("experience_min")} /></Field>
-        <Field label="Experience max (yrs)"><input type="number" className={inputCls} value={f.experience_max} onChange={set("experience_max")} /></Field>
+        <Field label="Your experience (yrs)" hint="Naukri lists jobs that accept this many years of experience."><input type="number" className={inputCls} value={f.experience_min} onChange={set("experience_min")} /></Field>
+        <Field label="Experience max (yrs, optional)"><input type="number" className={inputCls} value={f.experience_max} onChange={set("experience_max")} /></Field>
         <Field label="Min salary (per year)"><input type="number" className={inputCls} value={f.salary_min} onChange={set("salary_min")} /></Field>
-        <Field label="Posted within (days)"><input type="number" min={1} max={90} className={inputCls} value={f.posted_within_days} onChange={set("posted_within_days")} /></Field>
+        <Field label="Posted within" hint="Only recent jobs are searched, newest postings first on the site.">
+          <select className={inputCls} value={f.posted_within_days} onChange={set("posted_within_days")}>
+            <option value="">Any time</option><option value="1">Last 24 hours</option><option value="3">Last 3 days</option><option value="7">Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option>
+          </select></Field>
         <Field label="Exclude companies (comma separated)"><input className={inputCls} value={f.excluded} onChange={set("excluded")} /></Field>
-        <Field label="Max jobs per account per run"><input type="number" min={1} max={200} className={inputCls} value={f.max_results} onChange={set("max_results")} /></Field>
+        <Field label="Jobs to look at per account per run" hint="Each is read and scored; only those above the schedule's match score are applied to.">
+          <select className={inputCls} value={f.max_results} onChange={set("max_results")}>
+            {[10, 25, 50, 100, 200].map((n) => <option key={n} value={n}>{n} jobs</option>)}
+            {![10, 25, 50, 100, 200].includes(Number(f.max_results)) && <option value={f.max_results}>{f.max_results} jobs</option>}
+          </select></Field>
         <div className="md:col-span-2"><span className="mb-1 block text-sm font-medium">Sites to include</span>
           <div className="flex gap-4 text-sm">{SITES.map((s) => <label key={s}><input type="checkbox" className="mr-1" checked={f.sites.includes(s)} onChange={() => toggle(s)} />{s}</label>)}</div></div>
         {f.sites.includes("company") && <div className="md:col-span-2"><Field label="Company apply URLs (one per line)" hint="The generic adapter opens each URL and fills the form; unknown fields, logins and CAPTCHAs stop for you."><textarea className={inputCls} rows={4} value={f.company_urls} onChange={set("company_urls")} /></Field></div>}

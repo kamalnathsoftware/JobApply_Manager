@@ -118,3 +118,36 @@ def test_apply_already_applied_and_external(page, tmp_path):
     job = ad.get_job("https://www.naukri.com/job-listings-x-111111111111")
     assert job.apply_type == "external"
     assert ad.apply(job, ctx(tmp_path)).status == ApplyStatus.SKIPPED
+
+
+def test_chatbot_send_never_clicks_the_pages_save_job_button(page, tmp_path):
+    serve(page, {"naukri.com": "naukri_job_real.html"})
+    ad = NaukriAdapter(page, FAST)
+    job = ad.get_job("https://www.naukri.com/job-listings-x-111111111111")
+    bank = [BankEntry(["expected ctc"], "9 LPA"), BankEntry(["relocate"], "yes")]
+    res = ad.apply(job, ctx(tmp_path, bank))
+    assert res.status == ApplyStatus.APPLIED
+    assert page.evaluate("window.__answers") == ["9 LPA", "Yes"]
+    assert page.evaluate("window.__savedJob") == 0  # 'Save job' was never pressed
+
+
+def _oneclick(page, tmp_path, mode):
+    from tests.conftest import FIXTURES
+
+    def handler(route):  # context-level, so a tab opened by the click is served too
+        name = (
+            "naukri_confirm.html" if "myapply" in route.request.url else "naukri_job_oneclick.html"
+        )
+        if route.request.url.startswith("about:"):
+            return route.continue_()
+        route.fulfill(status=200, content_type="text/html", body=(FIXTURES / name).read_text())
+
+    page.context.route("**/*naukri.com/**", handler)
+    ad = NaukriAdapter(page, FAST)
+    job = ad.get_job(f"https://www.naukri.com/job-listings-x-111111111111?mode={mode}")
+    return ad.apply(job, ctx(tmp_path))
+
+
+@pytest.mark.parametrize("mode", ["redirect", "newtab", "banner"])
+def test_one_click_apply_is_confirmed_however_naukri_reports_it(page, tmp_path, mode):
+    assert _oneclick(page, tmp_path, mode).status == ApplyStatus.APPLIED

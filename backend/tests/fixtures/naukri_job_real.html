@@ -1,0 +1,29 @@
+<html><head><title>Job</title></head><body>
+<h1>Automation Tester</h1><a class="comp-name">Infosys</a>
+<div class="styles_JDC__dang-inner-html__h0K4t">Selenium, Java.</div>
+<button class="styles_save-job-button__WLm_s">Save</button>
+<button id="apply-button">Apply</button>
+<div id="login_Layer" style="display:none">Login</div>
+<script>
+ // Mirrors what the live site does: an overlay blankets the page, and the bot lives in a
+ // container whose "Save" button looks just like the page's "Save job" button.
+ window.__answers = []; window.__savedJob = 0;
+ document.querySelector('.styles_save-job-button__WLm_s').onclick = () => { window.__savedJob++; };
+ const qs = [["What is your expected CTC?", []], ["Are you willing to relocate?", ["Yes", "No"]]];
+ let step = 0;
+ function bot() {
+   document.querySelectorAll('.chatbot_Overlay,#x1ChatBotContainer').forEach(e => e.remove());
+   if (step >= qs.length) { document.body.insertAdjacentHTML('beforeend', '<div class="apply-msg">You have successfully applied to Automation Tester</div>'); return; }
+   const [q, chips] = qs[step];
+   document.body.insertAdjacentHTML('beforeend',
+     '<div class="chatbot_Overlay show" style="position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.3)"></div>' +
+     '<div id="x1ChatBotContainer" class="_chatBotContainer" style="position:fixed;right:0;top:0;width:340px;height:100%;z-index:20;background:#fff">' +
+     '<div class="botMsg">' + q + '</div>' +
+     (chips.length ? '<div class="ssrc__radio-btn-container">' + chips.map(c => '<label>' + c + '</label>').join('') + '</div>'
+                   : '<div class="textArea" contenteditable="true"></div>') + '<div class="sendMsg">Save</div></div>');
+   const c = document.getElementById('x1ChatBotContainer'); let chosen = null;
+   c.querySelectorAll('label').forEach(l => l.onclick = () => { chosen = l.innerText; });
+   c.querySelector('.sendMsg').onclick = () => { window.__answers.push(chips.length ? chosen : c.querySelector('.textArea').innerText); step++; setTimeout(bot, 50); };
+ }
+ document.getElementById('apply-button').onclick = bot;
+</script></body></html>

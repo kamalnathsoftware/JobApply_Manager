@@ -1,0 +1,14 @@
+<html><body><h1>QA Engineer</h1>
+<button class="styles_save-job-button__WLm_s">Save</button>
+<button id="apply-button">Apply</button>
+<script>
+ document.getElementById('apply-button').onclick = () => {
+   const mode = new URLSearchParams(location.search).get('mode');
+   const w = mode === 'newtab' ? window.open('about:blank', '_blank') : null;  // inside the click = allowed
+   setTimeout(() => {
+     if (w) w.location.href = 'https://www.naukri.com/myapply/confirm';
+     else if (mode === 'banner') document.body.insertAdjacentHTML('beforeend', '<div class="toast">Applied to QA Engineer</div>');
+     else location.href = 'https://www.naukri.com/myapply/confirm';
+   }, 1500);   // the live site is not instant
+ };
+</script></body></html>

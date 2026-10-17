@@ -15,9 +15,9 @@ def test_derive_keywords_and_experience():
     assert derive_keywords(p) == ["Senior QA Engineer"]
     assert derive_keywords(ParsedResume(skills=["Python", "Django", "x"])) == ["Python Django"]
     assert derive_keywords(ParsedResume()) == []
-    assert derive_experience(4.5) == (3, 8)
+    assert derive_experience(4.5) == (5, 8)
     assert derive_experience(None) == (None, None)
-    assert derive_experience(1) == (0, 4)
+    assert derive_experience(1) == (1, 4)
 
 
 def test_upload_creates_profile_and_schedule(client, auth, llm, db_session):

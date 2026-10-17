@@ -64,7 +64,8 @@ def derive_experience(years: float | None) -> tuple[int | None, int | None]:
     if years is None:
         return None, None
     y = int(years + 0.5)  # round half up (round() is banker's rounding)
-    return max(0, y - 2), y + 3
+    # Naukri's experience filter takes the candidate's own years and lists the jobs that accept it
+    return max(0, y), y + 3
 
 
 def _location(p: ParsedResume) -> str | None:

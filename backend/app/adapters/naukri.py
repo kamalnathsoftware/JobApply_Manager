@@ -34,15 +34,28 @@ SEL = {
     "external_btn": "#company-site-button",
     "applied_marker": "#already-applied, .already-applied, button:has-text('Already Applied')",
     "login_layer": "#login_Layer, .login-layer",
-    "chatbot": "div[class*='chatbot_DrawerContentWrapper'], div.chatbot_Drawer",
+    # The screening-question bot. EVERYTHING below it is looked up inside this container only:
+    # the job page has its own "Save" (save job) button that must never be mistaken for the bot's.
+    "chatbot": (
+        "div[class*='chatBotContainer' i], div[id$='ChatBotContainer'], "
+        "div[class*='chatbot_DrawerContentWrapper'], div.chatbot_Drawer"
+    ),
     "bot_msg": "div.botMsg, li.botItem .botMsg",
     "chip": "div.ssrc__radio-btn-container label, div.chatbot_Chip",
-    "answer_box": "div.textArea[contenteditable='true'], div[class*='chatbot'] input[type='text']",
-    "send": "div.sendMsg, button:has-text('Save'), button:has-text('Submit')",
+    "answer_box": "div.textArea[contenteditable='true'], input[type='text']",
+    "send": "div.sendMsg, button:has-text('Save'), button:has-text('Submit'), button:has-text('Send')",
 }
-SUCCESS_RE = re.compile(r"successfully applied|you have applied|application (was )?sent", re.I)
+SUCCESS_RE = re.compile(
+    r"successfully applied|you have (successfully )?applied|application (was )?(sent|submitted)|"
+    r"applied successfully|applied to\b|thank you for applying",
+    re.I,
+)
+# After a one-click apply Naukri lands on an "Apply Confirmation" page (often in a new tab).
+CONFIRM_URL_RE = re.compile(r"/myapply/|apply[-_]?confirm|applyconfirm", re.I)
+CONFIRM_TITLE_RE = re.compile(r"apply confirmation|application (sent|submitted)|applied", re.I)
 MAX_BOT_STEPS = 15
-MAX_PAGES = 5
+MAX_PAGES = 10
+RESULT_WAIT_S = 12.0
 
 _CARD_JS = """
 (sel) => [...document.querySelectorAll(sel.card)].map(c => {
@@ -151,11 +164,49 @@ class NaukriAdapter(SiteAdapter):
         )
 
     # ---- apply ------------------------------------------------------------------------
+    def _chat(self, key: str):
+        """Locator for a bot element, searched inside the bot container only."""
+        return self.page.locator(SEL["chatbot"]).locator(SEL[key])
+
+    def _page_confirms(self, pg) -> bool:
+        try:
+            if CONFIRM_URL_RE.search(pg.url or "") or CONFIRM_TITLE_RE.search(pg.title() or ""):
+                return True
+            if pg.locator(SEL["applied_marker"]).first.count():
+                return True
+            body = pg.evaluate(
+                "() => (document.body ? document.body.innerText : '').slice(0, 5000)"
+            )
+            return bool(SUCCESS_RE.search(body or ""))
+        except Exception:  # page navigating / closing
+            return False
+
     def _applied(self) -> bool:
-        if self.page.locator(SEL["applied_marker"]).first.count():
-            return True
-        body = self.page.evaluate("() => document.body.innerText.slice(0, 5000)")
-        return bool(SUCCESS_RE.search(body or ""))
+        """True when this tab - or a tab the apply click opened - shows the confirmation."""
+        for pg in list(self.page.context.pages):
+            if self._page_confirms(pg):
+                return True
+        return False
+
+    def _close_extra_tabs(self) -> None:
+        for pg in list(self.page.context.pages):
+            if pg is not self.page:
+                try:
+                    pg.close()
+                except Exception:
+                    pass
+
+    def _wait_outcome(self, timeout_s: float = RESULT_WAIT_S) -> str:
+        """After clicking Apply: wait for 'applied', a 'chatbot' with questions, or give up."""
+        waited = 0.0
+        while waited < timeout_s:
+            if self._applied():
+                return "applied"
+            if self.page.locator(SEL["chatbot"]).first.count():
+                return "chatbot"
+            self.page.wait_for_timeout(500)
+            waited += 0.5
+        return "none"
 
     def apply(self, job: JobPosting, ctx: ApplyContext) -> ApplyResult:
         self.goto(job.url)
@@ -178,20 +229,28 @@ class NaukriAdapter(SiteAdapter):
         self.check_blocked()
         if self.page.locator(SEL["login_layer"]).first.is_visible():
             raise NeedsHuman("login", "Naukri session expired - log in again")
+        outcome = self._wait_outcome()
         for _ in range(MAX_BOT_STEPS):
-            if self._applied():
+            if outcome == "applied":
+                self._close_extra_tabs()
                 return ApplyResult(ApplyStatus.APPLIED, "applied", shot("applied"))
-            if not self.page.locator(SEL["chatbot"]).first.count():
+            if outcome != "chatbot":
                 break
             self._answer_next_question(ctx, shot)
-        if self._applied():
+            outcome = self._wait_outcome(timeout_s=6.0)
+        if outcome == "applied" or self._applied():
+            self._close_extra_tabs()
             return ApplyResult(ApplyStatus.APPLIED, "applied", shot("applied"))
-        raise AdapterError("could not confirm the application was submitted")
+        shot("unconfirmed")
+        raise AdapterError(
+            "clicked Apply but Naukri showed no confirmation (see the saved screenshot) - "
+            "check the job manually"
+        )
 
     def _answer_next_question(self, ctx: ApplyContext, shot) -> None:
-        msgs = self.page.locator(SEL["bot_msg"])
+        msgs = self._chat("bot_msg")
         question = msgs.last.inner_text().strip() if msgs.count() else ""
-        chips = self.page.locator(SEL["chip"])
+        chips = self._chat("chip")
         options = [chips.nth(i).inner_text().strip() for i in range(chips.count())]
         answer = ctx.resolver.resolve(question, options or None)
         if answer is None:
@@ -200,22 +259,22 @@ class NaukriAdapter(SiteAdapter):
         if options:
             chips.nth(options.index(answer)).click()
         else:
-            box = self.page.locator(SEL["answer_box"]).first
+            box = self._chat("answer_box").first
             if not box.count():
                 raise NeedsHuman("unknown_field", question)
             box.click()
             box.press_sequentially(answer, delay=self.h.rng.randint(35, 90))
         self.h.pause(0.5, 1.2)
-        send = self.page.locator(SEL["send"]).first
+        send = self._chat("send").first
         if send.count():
-            send.click()
+            send.click(timeout=8000)
         self._wait_for_next(question)
 
     def _wait_for_next(self, previous_question: str, timeout_s: float = 8.0) -> None:
         """Wait until the bot shows a different message, closes, or the apply is confirmed."""
         waited = 0.0
         while waited < timeout_s:
-            msgs = self.page.locator(SEL["bot_msg"])
+            msgs = self._chat("bot_msg")
             current = msgs.last.inner_text().strip() if msgs.count() else ""
             if current != previous_question or not self.page.locator(SEL["chatbot"]).count():
                 break
