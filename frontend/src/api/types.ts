@@ -43,6 +43,6 @@ export interface Stats {
 export interface PersonalDetails {
   date_of_birth: string | null; gender: string; marital_status: string; nationality: string; father_name: string;
   passport_number: string; disability_status: string; address: string; city: string; state: string; postal_code: string;
-  country: string; alternate_phone: string; current_ctc: string; expected_ctc: string; notice_period: string;
+  country: string; alternate_phone: string; current_ctc: string; expected_ctc: string; notice_period: string; last_working_day: string | null;
   preferred_location: string; willing_to_relocate: "" | "Yes" | "No"; work_authorization: string; requires_sponsorship: "" | "Yes" | "No";
 }

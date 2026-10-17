@@ -137,3 +137,30 @@ def test_dropdown_wording_still_answers_yes_no_questions():
     assert yes.resolve("Notice period", ["Immediate joiner", "30 days"]) == "Immediate joiner"
     no = resolver_for({"work_authorization": "No – I need authorisation"})
     assert no.resolve("Authorized to work?", ["Yes", "No"]) == "No"
+
+
+def test_last_working_day_answers_and_validates(client, auth):  # noqa: F811
+    r = resolver_for({"last_working_day": "2026-11-30"})
+    for q in (
+        "Last working day",
+        "What is your LWD?",
+        "Last working date (dd/mm/yyyy)",
+        "Date of relieving",
+    ):
+        assert r.resolve(q) == "30/11/2026"
+    assert resolver_for({}).resolve("Last working day") is None
+    assert (
+        client.put(
+            "/api/personal-details", headers=auth, json={"last_working_day": "1999-01-01"}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.put(
+            "/api/personal-details", headers=auth, json={"last_working_day": "2026-11-30"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get("/api/personal-details", headers=auth).json()["last_working_day"] == "2026-11-30"
+    )

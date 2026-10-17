@@ -8,7 +8,7 @@ import { Button, Card, ErrorText, Field, PageHeader, inputCls } from "../compone
 const EMPTY: PersonalDetails = {
   date_of_birth: null, gender: "", marital_status: "", nationality: "", father_name: "", passport_number: "", disability_status: "",
   address: "", city: "", state: "", postal_code: "", country: "", alternate_phone: "", current_ctc: "", expected_ctc: "",
-  notice_period: "", preferred_location: "", willing_to_relocate: "", work_authorization: "", requires_sponsorship: "",
+  notice_period: "", last_working_day: null, preferred_location: "", willing_to_relocate: "", work_authorization: "", requires_sponsorship: "",
 };
 
 
@@ -21,7 +21,7 @@ const NATIONALITY = ["Indian", "American", "British", "Canadian", "Australian", 
 const COUNTRY = ["India", "United States", "United Kingdom", "Canada", "Australia", "Germany", "France", "Singapore", "United Arab Emirates", "Sri Lanka", "Nepal", "Bangladesh", "Other"];
 const STATE = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry", "Other"];
 
-type TextKey = Exclude<keyof PersonalDetails, "date_of_birth" | "willing_to_relocate" | "requires_sponsorship">;
+type TextKey = Exclude<keyof PersonalDetails, "date_of_birth" | "last_working_day" | "willing_to_relocate" | "requires_sponsorship">;
 
 export default function Personal() {
   const { data } = useQuery({ queryKey: ["personal"], queryFn: () => api<PersonalDetails>("/personal-details") });
@@ -90,6 +90,9 @@ export default function Personal() {
           {text("current_ctc", "Current CTC", "6 LPA")}
           {text("expected_ctc", "Expected CTC", "9 LPA")}
           {pick("notice_period", "Notice period", NOTICE)}
+          <Field label="Last working day" hint="The date you leave (or left) your current employer. Leave empty if not applicable.">
+            <input type="date" className={inputCls} value={f.last_working_day ?? ""} onChange={(e) => set("last_working_day", e.target.value || null)} />
+          </Field>
           {text("preferred_location", "Preferred work location", "Chennai, Bengaluru, Remote")}
           {yesNo("willing_to_relocate", "Willing to relocate?")}
           {pick("work_authorization", "Work authorisation", WORK_AUTH)}

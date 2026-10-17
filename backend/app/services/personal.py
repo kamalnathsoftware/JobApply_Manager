@@ -117,6 +117,17 @@ _FIELDS: list[tuple[str, list[str], bool]] = [
 
 DOB_PATTERNS = ["date of birth", "dob", "birth date", "birthday", "d o b"]
 AGE_PATTERNS = ["your age", "age in years", "current age"]
+LWD_PATTERNS = [
+    "last working day",
+    "last working date",
+    "last day of work",
+    "last day at work",
+    "last day in office",
+    "last day of employment",
+    "relieving date",
+    "date of relieving",
+    "lwd",
+]
 
 
 def dob_text(d: date) -> str:
@@ -128,6 +139,8 @@ def entries(d: PersonalDetailsIn) -> list[BankEntry]:
     if d.date_of_birth:
         out.append(BankEntry(DOB_PATTERNS, dob_text(d.date_of_birth), sensitive=True))
         out.append(BankEntry(AGE_PATTERNS, str(age_on(d.date_of_birth))))
+    if d.last_working_day:
+        out.append(BankEntry(LWD_PATTERNS, dob_text(d.last_working_day)))
     for field, patterns, sensitive in _FIELDS:
         val = getattr(d, field)
         if val:
